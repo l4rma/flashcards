@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (gitignored) and adjust as needed — every
+# value here already has a sensible default in variables.tf, so an empty
+# terraform.tfvars is also fine.
+
+aws_region                  = "eu-north-1"
+project_name                = "flash-cards"
+cognito_self_signup_enabled = true
+
+# Extra Cognito callback/logout URLs, e.g. to test a local frontend dev
+# server against the deployed Cognito pool:
+# frontend_urls = ["http://localhost:5173/"]
+frontend_urls = []

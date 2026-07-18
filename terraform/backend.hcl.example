@@ -1,0 +1,11 @@
+# After running `terraform apply` in bootstrap/ once, copy this file to
+# backend.hcl (gitignored) with its real output value, then:
+#   terraform init -backend-config=backend.hcl
+#
+# No dynamodb_table entry — state locking is native S3 (`use_lockfile`,
+# set in versions.tf), not the older S3+DynamoDB-lock-table pairing.
+
+bucket  = "<bootstrap output: state_bucket>"
+key     = "flash-cards/terraform.tfstate"
+region  = "eu-north-1"
+encrypt = true

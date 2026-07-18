@@ -1,0 +1,682 @@
+# Flash Cards App — Spec
+
+A simple Anki-style flash card app for learning French vocabulary. You train on
+cards (French word → English translation), grade yourself, and the app
+schedules when you should see each card again using spaced repetition.
+
+## Core concept
+
+- A **card** has a French word/phrase (`key`) and its English translation
+  (`value`).
+- Training shows the card's **front (English)** first; you recall the
+  **French** word, then flip to reveal the back and grade yourself.
+  (Card fields are still named `french`/`english` in the data model — the
+  front/back display order is purely a frontend concern, see Frontend
+  below.)
+- Grading updates when the card is due again, using a simple doubling
+  interval (not full SM-2/Anki — deliberately simpler).
+
+## Data model
+
+### Card
+
+| Field           | Type      | Notes                                                        |
+|-----------------|-----------|---------------------------------------------------------------|
+| `user_id`       | string    | Owning user's Cognito `sub` — partition key in DynamoDB. See Multi-tenancy / AWS deployment, below |
+| `id`            | string    | Unique identifier (UUID) — sort key in DynamoDB               |
+| `french`        | string    | The French word/phrase — shown as the card's **back** (`key`) |
+| `english`       | string    | The English translation — shown as the card's **front** (`value`) |
+| `interval_days` | int       | Current interval; `0` means "new" / just reset                |
+| `due_date`      | date      | Card is due when `due_date <= today` (UTC date, day-granularity) |
+| `created_at`    | datetime  | When the card was added                                       |
+| `last_reviewed_at` | datetime, nullable | Last time it was graded "correct"                    |
+| `times_correct` | int | Lifetime count of Correct grades — for future stats, not scheduling |
+| `times_wrong`   | int | Lifetime count of Wrong grades — ditto |
+| `last_grade`    | string, nullable | Outcome of the most recent grade ("correct"/"wrong"); only used to detect "Comeback Kid", not shown in the UI |
+| `mastered`      | bool | Has this card ever crossed `scheduling.MASTERY_THRESHOLD_DAYS`? Lifetime flag for the "Word Master" achievement family |
+
+`times_correct`/`times_wrong`/`mastered`/`last_grade` **are** cleared by
+Admin's "Reset all progress" action, same as `interval_days`/`due_date`/
+`last_reviewed_at` — see Open decisions for why (originally meant to
+persist as a lifetime record across resets; reversed after that caused
+confusing bugs in practice).
+
+The app is genuinely multi-tenant as of the AWS migration (Cognito login,
+each user gets their own separate deck/progress) — see Multi-tenancy /
+AWS deployment, below, and [Open decisions](#open-decisions-assumptions).
+
+## Scheduling algorithm
+
+Grading only changes the card's schedule when you grade **Correct**. Wrong
+does not touch `interval_days` or `due_date` — it only affects the current
+training session's queue (see below).
+
+- **Correct**
+  - `times_correct += 1`
+  - If `interval_days == 0` (new or just-reset card) → set `interval_days = 2`
+  - Else → `interval_days = interval_days * 2`
+  - `due_date = today + interval_days`
+  - `last_reviewed_at = now`
+  - Card leaves the current session's queue.
+- **Wrong**
+  - `times_wrong += 1`
+  - `interval_days = 0` (resets progress — next "Correct" restarts at 2 days)
+  - `due_date` unchanged for now (card is still "due" until you grade it
+    Correct in a session; see below)
+  - Card is requeued in the current session (shown again before the session ends).
+
+This means Wrong cards keep reappearing within the same session, possibly
+multiple times, until you either grade them Correct or end the session. If
+you end the session with ungraded Wrong cards still in the queue, they
+simply remain due and will show up again next time you start training.
+
+## Training session flow
+
+1. **Start session**: pull all cards where `due_date <= today` into an
+   in-memory queue (order: shuffled, or oldest-due-first — TBD in
+   implementation).
+2. **Show next card**: display the English word (front).
+3. User clicks the card to flip it, revealing the French word (back).
+4. User grades: **Wrong / Correct**.
+   - Correct → update schedule (see above), remove from queue.
+   - Wrong → leave schedule as-is, move card to the back of the queue.
+5. Repeat until the queue is empty, or the user stops the session early.
+
+No stats/dashboard in the MVP (cards due count, streaks, etc. are backlog).
+
+## API design
+
+REST-ish API, single resource (`Card`) plus the gamification endpoints
+below. Backed by DynamoDB (see Tech stack) — every route requires
+authentication and is scoped to the calling user (`user_id` from the
+verified Cognito JWT), never a request parameter.
+
+- `POST /cards` — create a card (`french`, `english`)
+- `GET /cards` — list all cards
+- `GET /cards/due` — list cards currently due (`due_date <= today`)
+- `PATCH /cards/{id}` — edit a card's `french`/`english` text
+- `DELETE /cards/{id}` — delete a card
+- `POST /cards/{id}/grade` — body: `{ "grade": "wrong" | "correct" }`
+  — applies the scheduling algorithm above and returns the updated card
+
+Session queue logic (ordering, requeueing) lives in the **frontend**, not the
+backend — the backend only tracks each card's persistent schedule state. This
+keeps the backend stateless/simple and avoids needing session storage.
+
+## Frontend (React)
+
+Pages:
+- **Deck** — combines what were originally two separate tabs (Add Card,
+  Manage Cards) into one page: the add-card form pinned at the top (`Front`
+  / `Back` fields, front = English, back = French; placeholders "hello"/
+  "bonjour"; generic front/back wording rather than "French"/"English" —
+  see Open decisions), the Manage list directly below it (edit/delete,
+  header shows total card count and how many aren't yet correct this
+  session, each row shows English/front first then French/back plus
+  lifetime ✓/✗ counts and interval/due date). Adding a card refreshes the
+  list underneath automatically. Combined per explicit request — they were
+  two thin pages that were almost always used together.
+- **Train** — the core loop: show English word (front) → click to flip and
+  reveal the French word (back) → grade buttons → next card. Shows
+  "Session complete" when the queue is empty.
+
+Top nav is icon-only (no text labels) — see `DESIGN.md`'s Navigation
+section for the bar styling and which emoji maps to which tab.
+
+Auth: Cognito Hosted UI (redirect + PKCE authorization-code flow). On load,
+if there's no valid access token, the app redirects to Cognito's login
+page; after login, Cognito redirects back with a `code` that's exchanged
+for tokens. Every API call attaches `Authorization: Bearer <token>`; a 401
+response redirects back to login rather than attempting silent refresh
+(access tokens expire in 60 minutes — an idle user gets bounced back to
+what's usually an invisible re-auth if their Hosted-UI session cookie is
+still live). A logout action lives on the Admin page.
+
+## Tech stack
+
+**AWS, no local/Docker deployment target.** Final architecture:
+
+- **Backend**: FastAPI, packaged for AWS Lambda via `Mangum`
+  (`handler = Mangum(app)`), fronted by **API Gateway** (HTTP API) with a
+  native JWT authorizer validating **Cognito** tokens before Lambda is
+  invoked — no hand-rolled JWT verification in the app.
+- **Database**: **DynamoDB**, four tables (`Cards`, `Stats`,
+  `Achievements`, `QuestCompletions`), On-Demand billing. See `CLAUDE.md`'s
+  Architecture section for the exact key schema and why a live
+  SQL-style aggregate query became a set of `Stats` counters instead.
+- **Frontend**: React (Vite) built as a static bundle, hosted on **S3 +
+  CloudFront** (CloudFront also proxies `/api/*` to API Gateway under the
+  same origin, so the frontend's `/api` relative-path convention needs no
+  change).
+- **Auth**: **Cognito** User Pool + Hosted UI (self-service signup, open by
+  default).
+- **IaC**: **Terraform**, flat single root module (no nested modules —
+  personal project, avoid premature abstraction), no VPC at all (Lambda
+  only talks to DynamoDB/Cognito, both over managed endpoints).
+- Chosen over two alternatives during planning, for the record: ECS
+  Fargate + ALB + RDS Postgres (rejected — real numbers came out around
+  $40-48/mo, dominated by the ALB's flat hourly charge, vs. Lambda+API
+  Gateway+DynamoDB's effectively-$0/mo at this traffic level) and a single
+  EC2 instance running the (now-retired) Docker Compose setup as-is
+  (~$11.60/mo, viable, but the user's own stated preference — prior
+  experience with Lambda/API Gateway, and "this really feels like a
+  project that should be serverless" — settled it in favor of full
+  serverless once the DynamoDB port was shown to be more tractable than
+  first assessed).
+
+### Multi-tenancy
+
+Genuinely multi-user (not just an auth gate on top of a single-tenant
+app) — every table is partitioned by `user_id` (the Cognito `sub` claim).
+`Stats` changed from a hardcoded singleton row to one item per user.
+`AchievementUnlock`/`DailyQuestCompletion` gained `user_id` as part of
+their key. Every card operation addresses `Key={user_id, id}`, which
+closes an IDOR class of bug by construction (there's no way to reference
+another user's card without already knowing their `user_id`, which only
+ever comes from the verified JWT) rather than relying on someone
+remembering to add a `WHERE`/filter clause.
+
+## Gamification
+
+Planned to land in stages, each useful on its own: **streak + coins** first,
+then achievements, then **daily quests** (this phase), then chests. Coins
+have no spend target yet — chests (a later phase) will be the first coin
+sink.
+
+### Data model
+
+### Stats (one item per user, keyed by `user_id`)
+
+| Field              | Type          | Notes                                     |
+|--------------------|---------------|--------------------------------------------|
+| `coins`            | int           | Running total, earned from training        |
+| `current_streak`   | int           | Consecutive days with at least one grade    |
+| `longest_streak`   | int           | High-water mark of `current_streak`         |
+| `last_active_date` | date, nullable| Last UTC date any card was graded           |
+| `current_correct_streak` | int     | Consecutive Correct grades; any Wrong resets to 0 |
+| `longest_correct_streak` | int     | High-water mark of `current_correct_streak` — used by the "correct in a row" achievement family, never reset by admin actions |
+| `session_had_wrong` | bool | Any Wrong since the last session completion (or start of day)? Reset in `sync_session` (new day) and again in `award_session_complete` (fresh check per completion) |
+| `flawless_sessions_completed` | int | Lifetime count of sessions completed with `session_had_wrong` still false |
+| `largest_session_completed` | int | High-water mark of `session_initial_due` at the moment a session actually completed — for "Marathon" |
+| `comebacks` | int | Lifetime count of "graded Wrong, then Correct" on a card's next grade |
+| `cards_mastered` | int | Lifetime count of cards that have ever crossed `scheduling.MASTERY_THRESHOLD_DAYS` (64) |
+| `trained_before_7am` / `trained_after_11pm` | bool | One-time flags based on local wall-clock time at grading — for Early Bird (4am–7am) / Night Owl (11pm–4am, spans midnight) |
+| `quest_date` | date, nullable | Last calendar date the daily-quest fields were synced — mirrors `session_date`'s freeze-once-per-day pattern |
+| `quest_cards_added_today` | int | Cards added today via `POST /cards` — backs the "Deck Builder" quest. Incremented only on the actual add action (not derived from `Card.created_at`), reset to 0 on day rollover |
+| `quest_correct_today` | int | Correct grades today — backs the "Daily Training" quest, whose target is `min(10, session_initial_due)` so it counts down identically to the Train page's own progress bar. Reset to 0 on day rollover |
+| `total_cards` | int | Running count of cards ever created — backs the deck-size achievement family. A `Stats` counter (not a live count of the `Cards` table), since DynamoDB has no `COUNT` query; incremented on `POST /cards`. **Not** reset by "reset all progress" (mirrors the pre-DynamoDB behavior: that action never deleted cards, so this shouldn't drop either) |
+| `total_correct` / `total_wrong` | int | Running lifetime counts — back the "lifetime correct answers" achievement family and "First Steps"/"Nobody's Perfect". Replaced a live `SUM(Card.times_correct)`-style aggregate for the same DynamoDB reason; incremented in the same `record_training_activity` call that updates every other per-grade counter. Reset by "reset all progress" (unlike `total_cards`) |
+
+### Streak logic
+
+Runs once per grade (Wrong or Correct both count — any training activity
+keeps the streak alive; only Correct earns coins, see below):
+
+- `last_active_date` is `None` → `current_streak = 1`
+- `last_active_date == today` → no change (already active today)
+- `last_active_date == today - 1 day` → `current_streak += 1`
+- otherwise (gap of 2+ days, or first grade after a break) → `current_streak = 1`
+- `last_active_date = today`
+- `longest_streak = max(longest_streak, current_streak)`
+
+### Coins
+
+- **+1 coin** (`stats.COINS_PER_CORRECT`) on every **Correct** grade. Wrong
+  grades earn nothing (no penalty either).
+- **Session-complete bonus**: flat **+10 coins** (`stats.SESSION_COMPLETE_BONUS`)
+  when the last due card for the day is graded Correct (today's queue
+  empties). Previously scaled with the daily streak (`4 + current_streak`);
+  simplified to a flat amount.
+- **Achievement rewards**: unlocking an achievement also pays out coins —
+  10 for the easiest/first tier of a family (or for standalone
+  achievements, set explicitly per-achievement), scaling up via
+  `achievements.REWARD_BY_TIER_INDEX` for harder tiers (20, 35, 60, 100,
+  150, 250, 400). See `check_and_unlock_achievements` — conditions are
+  evaluated from a snapshot taken *before* any reward is applied in that
+  pass, specifically so one achievement's reward can't spuriously push a
+  coin-threshold achievement (e.g. "First Coins") over its target within
+  the same check. (Cascading *across separate* calls — e.g. an earlier
+  unlock's reward genuinely pushing a coin achievement over target on the
+  *next* grade — is expected and fine.)
+- Nothing else to spend coins on yet — displayed as a running score. First
+  real sink will be chests (later phase).
+
+### Session progress bar
+
+A purple progress bar shown above the card in Train, representing progress
+toward today's Daily Training quest (see Daily quests, below) — **not** a
+locally-computed fraction of the full due queue. The bar reads
+`progress_current`/`progress_target` straight off `GET /quests`' `daily_train`
+entry (`percent = progress_current / progress_target`), the same data the
+Progress page's Daily Quests box renders, refetched after every grade. This
+means the bar counts down from `max(quest_train_floor, min(10,
+session_initial_due))`, not from the full due count — the two bars are
+guaranteed identical since they're driven by the same backend values, not
+two separate calculations. `quest_train_floor` (see Daily quests, below)
+means this is never 0 even on a day with no cards due.
+
+This replaced an earlier version that computed
+`percent = (initialDueCount - currentQueueLength) / initialDueCount`
+entirely from frontend session-queue state (uncapped by 10) — that
+diverged from the Daily Quests bar on any day with more than 10 cards due,
+since the two bars used different denominators. Bug reported by the user
+("the bar on the daily quest daily training and on the training page are
+not the same"); fixed by making Train read the same quest data instead of
+computing its own percentage.
+
+Two distinct numbers are shown on this page, deliberately kept visually
+separate rather than merged into one, since they answer different
+questions and can genuinely diverge on a day with more than 10 cards due:
+- **"N card(s) left to review"** (above the bar) — `queue.length`, the
+  actual count of unlearned/due cards remaining in today's full session
+  (unbounded, can be more than 10).
+- **"🎯 Daily goal: X/Y"** (caption under the bar) — the same
+  `daily_train` quest values the bar itself uses, i.e. progress toward
+  the capped daily target.
+
+An earlier iteration tried collapsing these into one number (making the
+"left" text itself `progress_target - progress_current`) to match the bar
+exactly — reverted after the user pointed out they actually wanted *both*
+pieces of information visible, not one replacing the other.
+
+### Achievements
+
+Definitions live in code (`app/achievements.py`), not the database — each
+is a key, title, description, emoji badge (placeholder art for now — real
+badges to be designed later), a numeric `target`, and a `current` function
+returning the live progress value (not just a boolean) over current
+`Stats` + live card aggregates (total cards, sum of `times_correct`/
+`times_wrong` across all cards). Unlocked when `current >= target`. Unlocks
+are recorded one row per key in `AchievementUnlock` (key + UTC timestamp);
+absence of a row means locked. Checked after grading a card, adding a card,
+or completing a session — idempotent (already-unlocked keys are skipped).
+Unlocks are cleared by Admin's "Reset all progress" action
+(`clear_achievements`), and — as of the reversal described in Open
+decisions — the underlying stats they check are cleared right along with
+them, so a reset actually re-locks things rather than leaving them one
+grade away from instantly re-unlocking. Each achievement also pays out
+coins on unlock (see Coins, below); coin-based achievements use
+`Stats.lifetime_coins_earned` rather than the resettable `coins` balance,
+but since both are now reset together, they stay equal to each other in
+practice (no coin-spending sink exists yet to make them diverge).
+
+`GET /achievements` includes `progress_current`/`progress_target` per
+achievement (current capped at target for a clean "X/Y" display) so the
+frontend can show a progress indicator, not just locked/unlocked.
+
+**Tiered families**: streak, correct-answer, coin, and deck-size
+achievements each form a `family` (an `AchievementDef.family` string,
+`None` for standalone achievements). Rather than listing every tier,
+`GET /achievements` collapses each family down to **at most two** entries:
+- the highest tier already completed (`unlocked: true`) — its `history`
+  lists the earlier completed tiers in that family (key/title/badge/
+  `unlocked_at` each). Absent if nothing in the family is unlocked yet.
+- the next not-yet-unlocked tier (`unlocked: false`), with its own live
+  `progress_current`/`progress_target`. Absent once the whole ladder is
+  complete (nothing left to work toward).
+
+So a family with no progress shows one (locked) tile; a family with
+partial progress shows two (one completed+colored with history, one
+locked+shaded showing what's next); a fully-completed family shows one
+(the last tier, unlocked, full history). This lets the UI always show
+"what you've done" and "what's next" side by side without the grid
+growing unbounded as more tiers get added. Standalone achievements (First
+Steps, Session Complete) always have an empty `history` and never pair
+with a second tile. `check_and_unlock_achievements` itself is unaffected
+by families — it still checks and can unlock every tier independently
+(e.g. a big stat jump could unlock two tiers in the same event); the
+two-tiles-max collapsing only happens at read-time in `list_achievements`.
+
+Starting list (53 achievement tiers across 10 families/standalones — easy
+to extend, just add an `AchievementDef` with the right `family`):
+
+| Badge | Title | Target |
+|---|---|---|
+| 🌱 | First Steps | ≥1 lifetime grade (correct or wrong) |
+| 🙈 | Nobody's Perfect | ≥1 lifetime wrong grade |
+| 🌟 | Flawless Session | ≥1 session completed with zero Wrong grades |
+| 🔄 | Comeback Kid | ≥1 card graded Wrong then Correct on its next grade |
+| 🌅 | Early Bird | Trained 4am–7am (local time), at least once |
+| 🦉 | Night Owl | Trained 11pm–4am (local time, spans midnight), at least once |
+| 🔥 | Week Warrior → Year of Learning | `longest_streak` (daily login): 7/30/60/100/365 |
+| ✅ | Getting Started | 10 lifetime correct answers |
+| ✅ | Century | 100 lifetime correct answers |
+| ✅ | High Five Hundred | 500 lifetime correct answers |
+| 🪙 | First Coins | 10 lifetime coins earned |
+| 🪙 | Piggy Bank | 100 lifetime coins earned |
+| 🪙 | Treasure Hoard | 500 lifetime coins earned |
+| 📚 | First Card | 1 card added |
+| 📚 | Building Your Deck | 10 cards added |
+| 📚 | Growing Collection | 30 cards added |
+| 📚 | Vocabulary Builder | 50 cards added |
+| 📚 | Serious Collector | 100 cards added |
+| 📚 | Deck Master | 250 cards added |
+| 📚 | Lexicon Legend | 500 cards added |
+| 🏁 | Session Complete → Session Legend | Sessions completed: 1/5/10/25/50/100/250/500 |
+| 🎯 | Hat Trick → Perfection | `longest_correct_streak` (answers in a row, resets on Wrong): 3/5/10/25/50/100 |
+| 🎓 | Word Master → Master Linguist | `cards_mastered` (cards that crossed the 64-day interval): 1/5/10/25/50 |
+| 🏃 | Quarter Marathon → Iron Learner | `largest_session_completed` (biggest queue ever cleared in one sitting): 25/50/100/200 |
+
+### Daily quests
+
+Definitions live in code (`app/quests.py`), not the database — same shape
+as `AchievementDef` (key, title, description, emoji badge, `coin_reward`),
+but `target` is a `Callable[[Stats], int]` rather than a fixed number (see
+Daily Training below for why), and `current` is a `Callable[[Stats], int]`
+scoped to *today* instead of lifetime. **Static for now** (identical every
+day) — designed so the set can rotate/change later without a data-model
+change, since each quest is just an entry in `DAILY_QUESTS`:
+
+| Badge | Title | Target |
+|---|---|---|
+| 📚 | Deck Builder | Add 5 cards today |
+| 🎯 | Daily Training | Get 10 cards correct today, or `session_initial_due` if fewer than 10 cards are due — never less than a growing floor (see below) |
+
+(Target column above documents the mechanic; the actual `description` shown
+in the UI is deliberately much shorter — "Add 5 cards today." /
+"Mark cards correct in Train." — the numeric target/progress is already
+visible via the progress bar's "X/Y", so the description doesn't need to
+restate it.)
+
+**Daily Training's target is `max(quest_train_floor, min(10,
+session_initial_due))`**, deliberately the same daily-frozen baseline that
+drives the Train page's own progress bar (see Session progress bar, above)
+— not a fixed "get 10 correct" that could be unreachable on a light day
+(once a card is due and gets a Correct grade it leaves the queue, so with
+only 1-2 cards due there'd be no way to rack up 10 corrects no matter how
+well you train) and not the earlier design of "complete today's session"
+(a boolean, replaced because the user wanted a numeric countdown matching
+the Train page bar instead). Progress is `quest_correct_today`, a `Stats`
+counter incremented on every Correct grade — so both bars count down from
+the same number and reach 100% at the same moment.
+
+**`quest_train_floor`** (`Stats` field, `app/quests.py`'s `TRAIN_FLOOR_*`
+constants) exists because an empty/small deck would otherwise give a
+trivial (or literally 0) target — reported by the user as "the daily quest
+will be to review 0 cards" when nothing was due. It starts at
+`TRAIN_FLOOR_START` (5) and grows by `TRAIN_FLOOR_GROWTH` (5) on every new
+calendar day (`Stats.sync_day`, skipping the very first day so a brand new
+user starts at 5, not 10), capped at `TRAIN_FLOOR_MAX` (50). This is a
+deliberate, acknowledged trade-off — once the floor exceeds what a small
+deck can supply, the quest becomes genuinely uncompletable until the deck
+grows, which is the intended nudge, not a bug. Reset by "Reset all
+progress" back to `TRAIN_FLOOR_START`, same as the rest of `Stats`.
+
+Progress resets once per calendar day: `Stats.sync_day` checks
+`Stats.quest_date` and resets `quest_cards_added_today`/
+`quest_correct_today` on rollover (also growing `quest_train_floor`, see
+above). It also recomputes today's due count in the same call, so
+`session_initial_due` — and therefore the Daily Training target — is
+correctly frozen for the day regardless of whether the Train page, the
+Progress page, or neither has been opened yet today. Both quests' progress
+is a `Stats` counter incremented only by the actual action that should
+count (`record_quest_card_added` from `POST /cards`,
+`record_quest_correct_grade` from `POST /cards/{id}/grade` on a Correct
+grade) — **not** derived live from existing data like `Card.created_at`.
+That was the original design for the "add cards" quest (count of cards
+with today's date), and it caused a real bug: any card inserted by other
+means with today's timestamp — e.g. the dev `seed_data.py` script, which
+bypasses `POST /cards` entirely — silently counted toward the quest. A DB
+reseed (needed after this feature's own schema change) planted 25
+same-day-timestamped cards and the quest showed as already satisfied on
+first load, despite nothing having been added through the app that day.
+Fixed by switching to an explicit counter incremented only on the real
+add action.
+
+Completion (and its one-time coin reward) is recorded in
+`DailyQuestCompletion` — one row per `(quest_key, completed_date)`, the
+quest equivalent of `AchievementUnlock` but re-completable every day
+instead of once ever. This is what actually gates the reward to "once per
+quest per day": progress can keep climbing past the target for the rest
+of the day without re-awarding, since a completion row already exists for
+today. Checked via `check_and_complete_quests` after adding a card and
+after grading a card Correct — same snapshot-then-reward two-phase
+pattern as `check_and_unlock_achievements`, for the same reason (a reward
+shouldn't spuriously satisfy another quest's condition within the same
+check). Cleared by Admin's "Reset all progress" (`clear_quest_completions`,
+plus `quest_date`/`quest_cards_added_today`/`quest_correct_today` reset in
+`reset_all_stats`) — unlike the deck-size *achievements*, both quests'
+progress genuinely goes back to 0 on reset, since both are `Stats`
+counters rather than a live card count.
+
+`GET /quests` → list of `{ key, title, description, badge, completed,
+progress_current, progress_target, coin_reward }`, one entry per quest (no
+family-collapsing needed — there's no tiering, just today's fixed set).
+
+### Celebration popup (achievements + daily quests)
+
+Whenever an achievement is newly unlocked, or a daily quest is newly
+completed, the frontend pops a full-screen celebration: a confetti burst
+(`canvas-confetti`, ~3KB, no React wrapper — just called imperatively in a
+`useEffect`) plus a modal with a heading ("Grats! You earned an
+achievement!" or "Quest complete!"), the badge (large emoji), title,
+description, and the coin reward earned. Same modal component for both —
+`AchievementUnlockNotice` and `QuestCompletionNotice` have the identical
+shape (`key`/`title`/`description`/`badge`/`coin_reward`), so
+`CelebrationModal` just takes a `celebration` object tagged with
+`kind: "achievement" | "quest"` to pick the heading text.
+
+No new endpoints for this — `check_and_unlock_achievements` and
+`check_and_complete_quests` were already called as side effects of
+`POST /cards` and `POST /cards/{id}/grade` (achievements also on
+`POST /stats/session-complete`), but their return values (lists of
+newly-unlocked/newly-completed keys) used to be discarded. Now
+`CardOut`/`StatsOut` carry `newly_unlocked_achievements:
+list[AchievementUnlockNotice]` (all three endpoints) and `CardOut` also
+carries `newly_completed_quests: list[QuestCompletionNotice]` (only
+`POST /cards` and `POST /cards/{id}/grade` — quests don't complete via
+session-complete), populated via `achievements.describe_achievements(keys)`
+/ `quests.describe_quests(keys)` — empty on every other call (`GET /cards`,
+`PATCH /cards/{id}`, etc.). Deliberately attached to the existing
+responses instead of a separate endpoint/polling mechanism, since the
+unlock/completion can only happen exactly when one of those actions
+runs — no new round-trip needed, and no risk of missing/duplicating a
+notification between requests.
+
+Frontend: `TrainPage` (after grading and after session-complete) and
+`DeckPage` (after adding a card) call `onAchievementsUnlocked` and
+`onQuestsCompleted` callbacks with those fields; `App.jsx` owns a single
+global FIFO queue (`celebrationQueue`, mixing both kinds) so the popup
+shows regardless of which tab triggered it, and multiple simultaneous
+unlocks/completions (e.g. crossing several deck-size tiers in one add, or
+an achievement and a quest completing on the same grade) queue up and
+show one at a time rather than overlapping. Popup renders at the `App`
+level (`z-50`, covers everything) so it isn't tied to any one page's
+lifecycle.
+
+### API
+
+- `GET /stats` → `{ coins, current_streak, longest_streak, last_active_date,
+  session_initial_due }`. Also freezes `session_initial_due` for the day on
+  first call (see above).
+- `POST /stats/session-complete` → applies the session-complete bonus,
+  returns updated stats. Called once by the frontend exactly when grading a
+  card empties the due queue (not on page load with an already-empty queue).
+- `CardOut`/`StatsOut` (returned by `POST /cards`, `POST /cards/{id}/grade`,
+  `POST /stats/session-complete`) include `newly_unlocked_achievements`
+  (empty unless that call unlocked something) — see Achievement-unlock
+  celebration, above.
+- `POST /reset-all-progress` → the single Admin reset action: **every**
+  `Stats` field including the lifetime achievement-tracking ones (via
+  `reset_all_stats`), every card's scheduling *and* lifetime counters (via
+  `reset_card_progress`, looped over all cards), and every achievement
+  unlock (`clear_achievements`). Cards themselves are kept. (Originally
+  left the lifetime fields alone so achievements would "survive" a reset —
+  reversed, see Open decisions, after real use showed that causes
+  confusing bugs.)
+- `GET /achievements` → list of achievement entries (families already
+  collapsed to at most two tiles, see above) with `unlocked`/`unlocked_at`/
+  `progress_current`/`progress_target`/`coin_reward`/`history` per key.
+- `GET /quests` → list of today's daily quests with `completed`/
+  `progress_current`/`progress_target`/`coin_reward` per key (see Daily
+  quests, above). Also syncs the daily reset for the day on first call.
+- `DELETE /cards` — deletes every card. Admin-only, destructive.
+- No new grading endpoint — `POST /cards/{id}/grade` (existing) now also
+  updates `Stats` as a side effect alongside the card's schedule.
+
+### Frontend
+
+A small stats bar (🔥 streak, 🪙 coins) visible across all pages, refreshed
+after every grade action in Train, plus the session progress bar described
+above shown only on the Train page. A separate **Progress** page (see
+below) is the fuller view — streak/coins/session summary, daily quests,
+extra stats, and the achievement grid. Chests are a later phase with their
+own data model, not designed yet.
+
+### Progress page
+
+A new "Progress" tab: streak/coins/card-count summary (🔥/🪙/📚 — total
+card count, not `session_initial_due`; see below), then a
+**Daily Quests** box directly beneath it (one row per `GET /quests` entry
+— badge, title, description, a small purple progress bar reusing the
+Train page's `ProgressBar` component, "X/Y" progress, and the coin reward
+or a ✅ once completed), then a few extra computed stats (total cards,
+total lifetime correct/wrong, accuracy %, derived client-side from
+`GET /cards` + `GET /stats` — no new backend aggregation endpoint needed),
+and the achievement grid below — one tile per
+`GET /achievements` entry (badge + title), unlocked ones full color, locked
+ones dimmed. For a tiered family with partial progress this means **two**
+tiles side by side: the highest tier completed (colored) and the next tier
+up (dimmed) — the grid still doesn't grow as more tiers get added, since
+it's always at most two tiles per family regardless of ladder length.
+Clicking a tile opens a popup with the description, a progress indicator
+(`progress_current`/`progress_target`, small purple bar reusing the Train
+page's `ProgressBar` component), the unlock date/time if unlocked, and —
+only on the completed tile of a tiered family — a "Previously completed"
+list of earlier tiers already unlocked in that family, each with its own
+unlock date/time. Standalone achievements and the "next tier" tile never
+show that section (nothing to list).
+
+### Admin page
+
+A plain "Admin" tab with just two actions, each behind a confirm dialog —
+no streak/coins/due-count summary shown here (that's the Progress page's
+job; showing it twice was redundant):
+- **Reset all progress** — the single full reset (`POST
+  /reset-all-progress`): streak, coins, session baseline, every card's
+  scheduling, all achievement unlocks, and all daily-quest completions.
+  Previously this was split across
+  four separate buttons (reset streak / reset coins / reset all stats /
+  reset training progress); collapsed to one since the app doesn't need
+  that granularity in practice.
+- **Delete ALL cards** — separate "danger zone", most destructive action
+  (actually removes card data, not just progress).
+
+Behind the same Cognito auth as every other page/route — scoped to
+whichever user is logged in, same as everywhere else. No extra
+admin-specific gating (e.g. no separate "admin role") since every user
+administers only their own data.
+
+## Future features (explicitly out of scope for now)
+
+- **Pronunciation audio**: play the French word's pronunciation, likely via
+  an AI TTS API.
+- **AI-generated example sentences**: given the words you already know plus
+  X new words you could learn, generate example sentences using only those,
+  and let you add the new words to your deck.
+
+These are noted here so the data model/API can be extended later (e.g. an
+`audio_url` field, an "example sentences" sub-resource) without needing a
+redesign, but no work happens on them until the core loop is solid.
+
+## Open decisions / assumptions
+
+These are reasonable defaults chosen to keep the spec moving — flag any of
+these you'd like changed:
+
+1. **Due date granularity**: day-level (UTC), not exact timestamps. A card
+   due "in 2 days" becomes due at the start of that UTC date.
+2. **Queue order**: not yet decided (shuffled vs oldest-due-first) — will
+   decide during implementation, easy to change.
+3. **Accounts/auth**: originally deferred ("no accounts in Phase 1,
+   decide access control when AWS starts"). Resolved once the AWS
+   migration actually started: Cognito Hosted UI, genuinely multi-tenant
+   (not just an auth gate) — see Multi-tenancy / AWS deployment, above.
+4. **Only two grades (Wrong/Correct)**, no "Hard" — kept deliberately simple.
+   If in practice you find Wrong (full reset) too harsh for "I knew it but
+   was slow," we can revisit adding Hard later — but starting minimal.
+5. **Admin's single "Reset all progress" action is a genuine full reset.**
+   Originally, to keep achievements "permanent," it deliberately left the
+   lifetime achievement-tracking fields alone (`lifetime_coins_earned`,
+   `sessions_completed`, `cards_mastered`, `comebacks`,
+   `longest_correct_streak`, the time-of-day flags, per-card
+   `times_correct`/`times_wrong`/`mastered`) while still clearing
+   `AchievementUnlock` rows. In practice this produced confusing bugs: the
+   visible `coins` balance permanently drifted from `lifetime_coins_earned`
+   (which achievements actually check against), and achievements based on
+   any of those fields re-unlocked the instant *any* new activity
+   happened — e.g. "Flawless Session" showing unlocked from just adding a
+   card, with no session ever completed — since the numbers backing them
+   never actually went back down. **Reversed**: the reset now zeroes every
+   `Stats` field and every per-card lifetime counter, not just scheduling
+   state. The one remaining, unavoidable exception: deck-size achievements
+   (based on `total_cards`) can still show nonzero progress right after a
+   reset, because this action doesn't delete cards — only "Delete ALL
+   cards" does that, and it's separate and more destructive.
+6. **Card front/back reversed from the original design.** Originally
+   showed French first (recognition: see French, recall meaning); reversed
+   per explicit request to show English first, French on the back
+   (production: see English, recall/produce the French). The `Card` model
+   still names its columns `french`/`english` (accurate, stable identifiers
+   for the actual language of each value) — only the frontend's display
+   order changed (`front={english}`/`back={french}` in `TrainPage.jsx`),
+   not the database schema. The Add Card form's field labels were changed
+   from "French"/"English" to generic "Front"/"Back" wording at the same
+   time (matching the flip mechanic's own vocabulary) rather than e.g.
+   "English (front)"/"French (back)" — a little less explicit about which
+   language goes where, but the "hello"/"bonjour" placeholders carry that
+   cue implicitly. Revisit the labels if that's not clear enough in
+   practice.
+7. **Daily quest set is static, not yet rotating.** "Add 5 cards" and
+   "Daily Training" are the same every day — designed so a future
+   rotating/random selection is just a change to `DAILY_QUESTS` in
+   `app/quests.py`, not a data-model change (see Daily quests, above). The
+   training quest's target went through two iterations: first "complete
+   today's session" (a boolean, to avoid a light-due-day making a fixed "N
+   correct today" unreachable), then changed to `min(10, session_initial_due)`
+   — a numeric countdown, matching the Train page's own progress bar
+   exactly, while keeping the same "never unreachable on a light day"
+   property since it caps at whatever's actually due.
+8. **Early Bird / Night Owl time windows don't overlap, and Night Owl spans
+   midnight.** Originally Early Bird was "any hour before 7am" and Night
+   Owl was "hour ≥ 23" — meaning training right after midnight (e.g.
+   00:19) satisfied *neither* the intended "late at night" definition (it's
+   clearly still up-late, not "before 7am" in the early-riser sense) *and*
+   incorrectly satisfied Early Bird's literal condition instead, so a night
+   owl could get mislabeled as an early riser. Fixed: Early Bird is now
+   `[4am, 7am)`, Night Owl is `[11pm, 4am)` (spanning midnight via
+   `hour >= 23 or hour < 4`) — the two windows are adjacent and
+   non-overlapping, and every hour of the day is covered by exactly one of
+   {Early Bird, Night Owl, neither}, never both.
+
+   This was **not**, however, the actual cause of the user-reported "Night
+   Owl still not unlocking" at 00:18 local time — that turned out to be a
+   second, separate bug: the app was running via `docker compose`, and the
+   backend **container's clock was UTC, 2 hours behind the host's real
+   `Europe/Oslo` time** (`docker exec ... date` showed `22:xx UTC` while
+   the host showed `00:xx CEST`). Every local-wall-clock-time check
+   (`date.today()` for the daily streak rollover, `datetime.now().hour` for
+   Early Bird/Night Owl) was silently computing against the wrong
+   timezone — the host-machine dev server (`uvicorn` run directly, not
+   containerized) never showed this symptom, which is what made it
+   non-obvious at first. Fixed by bind-mounting the host's resolved
+   `/etc/localtime` read-only into the backend service in
+   `docker-compose.yml` — see that file's comment and `CLAUDE.md`'s Rules
+   section. Both fixes were needed for the user's original report to
+   fully resolve. (Historical — `docker-compose.yml` no longer exists,
+   Docker was retired entirely when the app moved to AWS. Left here
+   because the *first* half of this entry, the non-overlapping time
+   windows, is still exactly how `stats.py` works today.)
+9. **AWS compute/database: Lambda + API Gateway + DynamoDB**, not ECS
+   Fargate + ALB + RDS Postgres (the first design considered), not a
+   single EC2 instance running the retired Docker Compose setup as-is
+   (a real, viable, ~$11.60/mo alternative). Real cost numbers drove this:
+   ECS+ALB+RDS worked out to ~$40-48/mo (the ALB's flat hourly charge
+   dominates, not the compute), vs. Lambda+API Gateway+DynamoDB landing
+   at effectively $0/mo at this app's traffic level. The DynamoDB port was
+   initially assessed as "too large/risky" (given ~50 achievement tiers'
+   worth of aggregation logic) — that assessment didn't hold up: nearly
+   all of `Stats` was already maintained as running counters rather than
+   live SQL aggregates, so the actual port was mechanical, not a redesign.
+   See `CLAUDE.md`'s Architecture section for the resulting DynamoDB
+   schema and the plan referenced there for the full comparison.

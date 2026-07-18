@@ -1,0 +1,23 @@
+# OS / editor cruft
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Claude Code's own local (machine-specific, not for sharing) config
+.claude/settings.local.json
+
+# Claude Code skill packages — resolved/installed content from
+# skills-lock.json, same relationship as node_modules to package-lock.json.
+# Keep the lock file tracked, not the installed content itself.
+.agents/
+.claude/skills/
+
+.pytest_cache/
+
+# Safety net — real secrets should never land at repo root, but catch it
+# if they do. Subdirectories (frontend/, terraform/, terraform/bootstrap/)
+# have their own more specific .gitignore entries for this already.
+.env
+*.pem
+*.key
