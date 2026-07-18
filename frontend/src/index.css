@@ -2,6 +2,13 @@
 
 @theme {
   --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  /* Fraunces (soft optical-size axis) — the "printed label" voice for
+     vocabulary words, headings, and stat numbers. Nunito stays the
+     everyday UI voice (buttons, nav, body copy, captions) — this pairing
+     is the main lever for reading as designed rather than templated,
+     since the palette/shape language otherwise deliberately continues
+     the existing brief rather than replacing it. */
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
 
   --color-primary: #4c9a6a;
   --color-primary-dark: #3e8058;
@@ -17,6 +24,14 @@
 
   --color-progress: #8a63d2;
   --color-progress-track: #ece5f9;
+
+  /* Coin icon (components/CoinIcon.jsx) — replaces the 🪙 emoji, which
+     renders as a gold coin on some platforms and a flat grey/silver disc
+     on others (Apple vs. Google's emoji artwork for this character
+     genuinely differ), so it looked inconsistent device-to-device.
+     A custom SVG guarantees the same coin everywhere. */
+  --color-coin: #e8b84b;
+  --color-coin-dark: #c6932b;
 }
 
 body {
@@ -28,4 +43,10 @@ body {
 
 #root {
   min-height: 100svh;
+}
+
+/* Bottom tab bar floats above the safe area on notched phones instead of
+   sitting flush under it. */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }

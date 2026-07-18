@@ -96,26 +96,8 @@ function App() {
 
   return (
     <div className="min-h-svh bg-background flex flex-col">
-      <nav className="flex justify-center gap-2 py-3 px-4 flex-wrap bg-primary-light border-b-2 border-primary">
-        {TABS.map(({ key, label, icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            aria-label={label}
-            title={label}
-            className={`rounded-2xl w-12 h-12 flex items-center justify-center text-2xl transition active:scale-95 ${
-              tab === key
-                ? "bg-primary text-white"
-                : "bg-transparent text-primary-dark hover:bg-primary/20"
-            }`}
-          >
-            {icon}
-          </button>
-        ))}
-      </nav>
       <StatsBar stats={stats} />
-      <main className="flex-1">
+      <main className="flex-1 flex flex-col pb-28">
         {tab === "train" && (
           <TrainPage
             key={tab}
@@ -134,6 +116,29 @@ function App() {
         {tab === "progress" && <ProgressPage key={tab} />}
         {tab === "admin" && <AdminPage key={tab} onChanged={refreshStats} />}
       </main>
+
+      <nav className="fixed bottom-0 inset-x-0 flex justify-center pb-safe pt-2 px-4 pointer-events-none">
+        <div className="pointer-events-auto flex gap-1 bg-surface/95 backdrop-blur rounded-full shadow-lg shadow-ink/10 ring-1 ring-ink/5 p-1.5">
+          {TABS.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              aria-label={label}
+              aria-current={tab === key ? "page" : undefined}
+              title={label}
+              className={`rounded-full w-14 h-14 flex items-center justify-center text-2xl transition active:scale-90 ${
+                tab === key
+                  ? "bg-primary text-white shadow-md shadow-primary/30"
+                  : "bg-transparent text-ink-soft hover:bg-primary-light hover:text-primary-dark"
+              }`}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {celebrationQueue.length > 0 && (
         <CelebrationModal
           celebration={celebrationQueue[0]}

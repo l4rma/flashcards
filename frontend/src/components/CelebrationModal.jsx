@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import confetti from "canvas-confetti";
+import CoinIcon from "./CoinIcon";
 
 const HEADINGS = {
   achievement: "Grats! You earned an achievement!",
@@ -18,20 +19,22 @@ export default function CelebrationModal({ celebration, onDismiss }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center px-4 z-50"
+      className="fixed inset-0 bg-ink/50 flex items-center justify-center px-4 z-50"
       onClick={onDismiss}
     >
       <div
         className="bg-surface rounded-3xl shadow-lg p-6 max-w-xs w-full flex flex-col items-center gap-2 text-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-lg font-extrabold text-primary-dark">
+        <p className="text-xs font-bold uppercase tracking-wide text-primary-dark">
           {HEADINGS[celebration.kind]}
         </p>
         <span className="text-6xl">{celebration.badge}</span>
-        <h3 className="text-xl font-extrabold text-ink">{celebration.title}</h3>
+        <h3 className="font-display font-semibold text-2xl text-ink">{celebration.title}</h3>
         <p className="text-sm text-ink-soft">{celebration.description}</p>
-        <p className="text-sm font-bold text-primary-dark">🪙 +{celebration.coin_reward} coins</p>
+        <p className="text-sm font-bold text-primary-dark flex items-center justify-center gap-1.5">
+          <CoinIcon className="w-4 h-4" /> +{celebration.coin_reward} coins
+        </p>
         <button
           type="button"
           onClick={onDismiss}

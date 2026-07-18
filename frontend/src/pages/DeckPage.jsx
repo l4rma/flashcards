@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { createCard, deleteCard, listCards, listDueCards, updateCard } from "../api";
 
+// A tiny, stable (id-derived, not random) tilt per row so the deck list
+// reads as a loose stack of index cards rather than a rigid table row —
+// same "physical card" motif as the flip card's punch hole.
+function tiltFor(id) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return ((hash % 100) / 100) * 1.2 - 0.6; // -0.6deg .. 0.6deg
+}
+
 export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) {
   const [english, setEnglish] = useState("");
   const [french, setFrench] = useState("");
@@ -57,29 +66,29 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
   }
 
   return (
-    <div className="flex flex-col items-center px-4 py-10 gap-10">
+    <div className="flex flex-col items-center px-4 pt-8 pb-10 gap-10">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-extrabold text-ink mb-6 text-center">Add a card</h1>
+        <h1 className="font-display font-semibold text-2xl text-ink mb-4">Add a card</h1>
         <form
           onSubmit={handleSubmit}
-          className="w-full bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-4"
+          className="w-full bg-primary-light/60 rounded-3xl shadow-md ring-1 ring-primary/10 p-6 flex flex-col gap-4"
         >
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-ink-soft">Front</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Front</span>
             <input
               value={english}
               onChange={(e) => setEnglish(e.target.value)}
               placeholder="hello"
-              className="rounded-2xl border border-primary-light bg-background px-4 py-3 text-ink outline-none focus:ring-2 focus:ring-primary"
+              className="rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-ink font-display font-medium text-lg outline-none focus:ring-2 focus:ring-primary"
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-ink-soft">Back</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Back</span>
             <input
               value={french}
               onChange={(e) => setFrench(e.target.value)}
               placeholder="bonjour"
-              className="rounded-2xl border border-primary-light bg-background px-4 py-3 text-ink outline-none focus:ring-2 focus:ring-primary"
+              className="rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-ink font-display font-medium text-lg outline-none focus:ring-2 focus:ring-primary"
             />
           </label>
           <button
@@ -101,23 +110,26 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
       </div>
 
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-extrabold text-ink mb-2 text-center">Manage cards</h1>
-        <p className="text-sm font-semibold text-ink-soft mb-6 text-center">
-          {cards.length} card{cards.length === 1 ? "" : "s"} total ·{" "}
-          {dueCount} not yet correct this session
-        </p>
+        <div className="flex items-baseline justify-between mb-4">
+          <h1 className="font-display font-semibold text-2xl text-ink">Your deck</h1>
+          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+            {cards.length} card{cards.length === 1 ? "" : "s"} · {dueCount} due
+          </span>
+        </div>
         {loading ? (
           <p className="text-center py-10 text-ink-soft">Loading…</p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {cards.length === 0 && (
-              <p className="text-center text-ink-soft">No cards yet — add one!</p>
+              <p className="text-center text-ink-soft">No cards yet — add one above!</p>
             )}
             {cards.map((card) => (
               <div
                 key={card.id}
-                className="bg-surface rounded-2xl shadow-md px-4 py-3 flex items-center justify-between gap-3"
+                style={editingId === card.id ? undefined : { transform: `rotate(${tiltFor(card.id)}deg)` }}
+                className="relative bg-surface rounded-2xl shadow-md px-4 py-3.5 flex items-center justify-between gap-3"
               >
+                <span className="absolute top-3 left-3 w-2 h-2 rounded-full bg-background ring-1 ring-ink/10" />
                 {editingId === card.id ? (
                   <div className="flex flex-col gap-2 flex-1">
                     <input
@@ -142,13 +154,15 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <p className="font-bold text-ink">{card.english}</p>
-                      <p className="text-sm text-ink-soft">{card.french}</p>
-                      <p className="text-xs text-ink-soft mt-1">
-                        interval: {card.interval_days}d · due {card.due_date}
+                    <div className="pl-3">
+                      <p className="font-display font-medium text-lg text-ink leading-tight">
+                        {card.english}
                       </p>
-                      <p className="text-xs text-ink-soft">
+                      <p className="text-sm text-ink-soft">{card.french}</p>
+                      <p className="text-xs text-ink-soft/70 mt-1.5">
+                        {card.interval_days}d interval · due {card.due_date}
+                      </p>
+                      <p className="text-xs text-ink-soft/70">
                         ✓ {card.times_correct} · ✗ {card.times_wrong}
                       </p>
                     </div>

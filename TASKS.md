@@ -43,8 +43,9 @@ design these tasks implement.
       per `DESIGN.md` (sage green, cream, rounded, Nunito)
 - [x] Polish Add Card, Manage Cards, and Train pages
 - [ ] Basic responsive layout (usable on phone + desktop) — layout is
-      mobile-first/narrow by construction but not yet verified on a real
-      phone
+      mobile-first/narrow by construction, verified via emulated viewports
+      (375px/420px/1280px) during the redesign below, but still not
+      verified on a real physical phone
 - [x] Nav bar redesign: its own visual identity (pale-green `primary-light`
       fill + darker-green `primary` bottom border, both already in the
       palette — no new colors) instead of blending into the cream page
@@ -63,6 +64,43 @@ design these tasks implement.
       duplicated the Progress page for no reason. `AdminPage.jsx` dropped
       its `getStats` fetch and loading state entirely, now just renders
       the two action buttons directly
+- [x] **Full redesign** (mid-2026, well after the rest of this phase —
+      user asked for a visual overhaul post-AWS-migration, using the
+      `frontend-design` skill): nav moved to a floating pill bar fixed to
+      the viewport bottom (**supersedes** the "rounded-2xl square tabs"
+      bullet above — tabs are `rounded-full` again now that the bar itself
+      is a pill, kept universal across mobile/desktop rather than
+      switching to a top bar above some breakpoint), paired **Fraunces**
+      (serif, vocabulary words/headings/stat numbers) with the existing
+      **Nunito** (UI chrome) for real type contrast, added a running
+      "index card" motif (punch-hole detail, stacked receding card edges
+      behind the active `FlipCard` sized to the queue depth, tilted rows
+      in the deck list), and restructured Progress's stats into one
+      unified stat strip instead of stacked paragraph-in-a-box sections.
+      Palette unchanged — see `DESIGN.md` for the full rationale.
+      Verified visually via a throwaway Playwright harness (mocked
+      auth/API, never committed) across phone/desktop/small-phone
+      viewports and every page's interactive states (flipped card,
+      session-complete, achievement modal); `npm run build` + `oxlint`
+      both clean.
+- [x] **Bug fix**: 🪙 coin emoji rendered inconsistently across
+      platforms — user reported gold on desktop, a flat silver/"moon-like"
+      disc on their phone. Root cause: emoji glyphs are drawn by each OS's
+      own emoji font (Apple vs. Google's artwork for this exact character
+      genuinely differ), not something CSS can control. Fixed by replacing
+      all 5 usages (`StatsBar`, `ProgressPage`'s stat strip/quest reward
+      badges/achievement modal, `CelebrationModal`) with a custom inline
+      SVG (`components/CoinIcon.jsx`, new `--color-coin`/`--color-coin-dark`
+      theme tokens) — renders identically on every device, and its center
+      rule line echoes the same "ruled index card" motif from the redesign
+      above rather than being generic coin clip-art.
+- [ ] **Future**: replace the rest of the app's emoji (🔥 streak, 📚/📈/⚙️
+      nav icons, all achievement/quest badges) with custom SVG icons too,
+      same reasoning as the coin fix above (cross-platform emoji rendering
+      is inconsistent by nature) — user's explicit request, not yet
+      started. Larger scope than the coin fix: achievement/quest badges
+      alone are a couple dozen distinct icons (see `achievements.py`/
+      `quests.py`), so this is a real design pass, not a quick swap.
 
 ## Phase 4 — Gamification: streak + coins
 - [x] `Stats` singleton model/table (`coins`, `current_streak`,

@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
 import { getAchievements, getQuests, getStats, listCards } from "../api";
+import CoinIcon from "../components/CoinIcon";
 import ProgressBar from "../components/ProgressBar";
 
 function formatDateTime(iso) {
   return new Date(iso).toLocaleString();
+}
+
+function Stat({ icon, value, label }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-xl leading-none">{icon}</span>
+      <span className="font-display font-semibold text-3xl leading-tight text-ink">{value}</span>
+      <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">{label}</span>
+    </div>
+  );
 }
 
 export default function ProgressPage() {
@@ -35,55 +46,57 @@ export default function ProgressPage() {
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
   return (
-    <div className="flex flex-col items-center px-4 py-10 gap-6">
-      <h1 className="text-2xl font-extrabold text-ink">Progress</h1>
+    <div className="flex flex-col items-center px-4 pt-8 pb-10 gap-8">
+      <h1 className="font-display font-semibold text-2xl text-ink self-start w-full max-w-sm">
+        Progress
+      </h1>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-2">
-        <p className="text-sm text-ink-soft leading-relaxed">
-          🔥 Streak: {stats.current_streak} (best {stats.longest_streak})
-          <br />
-          🪙 Coins: {stats.coins}
-          <br />
-          📚 Cards: {cards.length}
-        </p>
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex items-start justify-between">
+        <Stat icon="🔥" value={stats.current_streak} label={`best ${stats.longest_streak}`} />
+        <Stat icon={<CoinIcon className="w-5 h-5" />} value={stats.coins} label="coins" />
+        <Stat icon="📚" value={cards.length} label="cards" />
+        <Stat icon="🎯" value={accuracy === null ? "—" : `${accuracy}%`} label="accuracy" />
       </div>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-4">
-        <h2 className="text-lg font-bold text-ink">Daily Quests</h2>
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-5">
+        <h2 className="font-display font-semibold text-lg text-ink">Daily quests</h2>
         {quests.map((q) => (
-          <div key={q.key} className="flex flex-col gap-1">
+          <div key={q.key} className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-ink flex items-center gap-2">
+              <span className="text-sm font-bold text-ink flex items-center gap-2">
                 <span className="text-xl">{q.badge}</span>
                 {q.title}
               </span>
-              <span className="text-xs font-semibold text-ink-soft">
-                {q.completed ? "✅" : `🪙 ${q.coin_reward}`}
+              <span className="text-xs font-bold text-ink-soft flex items-center gap-1">
+                {q.completed ? (
+                  "✅ done"
+                ) : (
+                  <>
+                    <CoinIcon className="w-3.5 h-3.5" /> {q.coin_reward}
+                  </>
+                )}
               </span>
             </div>
             <p className="text-xs text-ink-soft">{q.description}</p>
-            <ProgressBar percent={Math.round((q.progress_current / q.progress_target) * 100)} />
-            <span className="text-xs font-semibold text-ink-soft self-end">
-              {q.progress_current}/{q.progress_target}
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <ProgressBar percent={Math.round((q.progress_current / q.progress_target) * 100)} />
+              </div>
+              <span className="text-xs font-bold text-ink-soft/70 shrink-0">
+                {q.progress_current}/{q.progress_target}
+              </span>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-2">
-        <p className="text-sm text-ink-soft leading-relaxed">
-          Cards in deck: {cards.length}
-          <br />
-          Lifetime correct: {totalCorrect} · wrong: {totalWrong}
-          <br />
-          Accuracy: {accuracy === null ? "—" : `${accuracy}%`}
-          <br />
-          Achievements: {unlockedCount}/{achievements.length}
-        </p>
-      </div>
-
       <div className="w-full max-w-sm">
-        <h2 className="text-lg font-bold text-ink mb-3">Achievements</h2>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="font-display font-semibold text-lg text-ink">Achievements</h2>
+          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+            {unlockedCount}/{achievements.length}
+          </span>
+        </div>
         <div className="grid grid-cols-3 gap-3">
           {achievements.map((a) => (
             <button
@@ -105,7 +118,7 @@ export default function ProgressPage() {
 
       {selected && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-10"
+          className="fixed inset-0 bg-ink/40 flex items-center justify-center px-4 z-10"
           onClick={() => setSelected(null)}
         >
           <div
@@ -113,18 +126,21 @@ export default function ProgressPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <span className="text-5xl">{selected.badge}</span>
-            <h3 className="text-lg font-extrabold text-ink">{selected.title}</h3>
+            <h3 className="font-display font-semibold text-xl text-ink">{selected.title}</h3>
             <p className="text-sm text-ink-soft">{selected.description}</p>
-            <div className="w-full flex flex-col items-center gap-1">
-              <ProgressBar
-                percent={Math.round((selected.progress_current / selected.progress_target) * 100)}
-              />
-              <span className="text-xs font-semibold text-ink-soft">
+            <div className="w-full flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <ProgressBar
+                  percent={Math.round((selected.progress_current / selected.progress_target) * 100)}
+                />
+              </div>
+              <span className="text-xs font-bold text-ink-soft/70 shrink-0">
                 {selected.progress_current}/{selected.progress_target}
               </span>
             </div>
-            <p className="text-xs font-semibold text-primary-dark">
-              🪙 {selected.coin_reward} coins
+            <p className="text-xs font-semibold text-primary-dark flex items-center justify-center gap-1">
+              <CoinIcon className="w-3.5 h-3.5" />
+              {selected.coin_reward} coins
               {selected.unlocked
                 ? ` · Unlocked ${formatDateTime(selected.unlocked_at)}`
                 : " on unlock"}

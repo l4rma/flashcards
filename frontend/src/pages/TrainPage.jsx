@@ -22,15 +22,21 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
   }, []);
 
   if (queue === null) {
-    return <p className="text-center py-10 text-ink-soft">Loading…</p>;
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-ink-soft">Loading…</p>
+      </div>
+    );
   }
 
   if (queue.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
-        <h1 className="text-2xl font-extrabold text-ink">Session complete!</h1>
-        <p className="text-ink-soft">No cards due right now. Nice work.</p>
-        <p className="text-ink-soft">You should add more cards to learn more.</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 text-center">
+        <span className="text-5xl">🌿</span>
+        <h1 className="font-display font-semibold text-3xl text-ink mt-2">Session complete</h1>
+        <p className="text-ink-soft max-w-xs">
+          No cards due right now — nice work. Add more in Deck to keep growing today's stack.
+        </p>
       </div>
     );
   }
@@ -69,21 +75,26 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
   }
 
   return (
-    <div className="flex flex-col items-center px-4 py-10 gap-6">
-      <p className="text-sm font-semibold text-ink-soft">{queue.length} card(s) left to review</p>
-      <div className="w-full max-w-sm flex flex-col items-center gap-1">
-        <ProgressBar percent={percent} />
-        {trainQuest && (
-          <span className="text-xs font-semibold text-ink-soft">
-            🎯 Daily goal: {trainQuest.progress_current}/{trainQuest.progress_target}
+    <div className="flex-1 flex flex-col items-center justify-center px-4 pt-8 pb-10 gap-7">
+      <div className="w-full max-w-sm flex flex-col items-center gap-2">
+        <div className="w-full flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+            {queue.length} left today
           </span>
-        )}
+          {trainQuest && (
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+              🎯 {trainQuest.progress_current}/{trainQuest.progress_target}
+            </span>
+          )}
+        </div>
+        <ProgressBar percent={percent} />
       </div>
       <FlipCard
         key={current.id}
         front={current.english}
         back={current.french}
         flipped={flipped}
+        stackDepth={Math.min(2, queue.length - 1)}
         onClick={() => setFlipped((f) => !f)}
       />
       {flipped && (
