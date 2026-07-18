@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { deleteAllCards, resetAllProgress } from "../api";
 import { logout } from "../auth";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function AdminPage({ onChanged }) {
   const [message, setMessage] = useState(null);
@@ -33,7 +34,12 @@ export default function AdminPage({ onChanged }) {
         Admin
       </h1>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-3">
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Appearance</p>
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-3">
         <button
           type="button"
           onClick={handleResetAllProgress}

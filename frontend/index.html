@@ -11,6 +11,19 @@
       rel="stylesheet"
     />
     <title>Flash Cards</title>
+    <script>
+      // Applied synchronously, before first paint, so a dark-mode visitor
+      // never sees a flash of the light theme while main.jsx loads —
+      // duplicates a couple lines of theme.js's logic on purpose, since
+      // this has to run before any module import is possible.
+      (function () {
+        var pref = localStorage.getItem("flashcards_theme") || "system";
+        var dark =
+          pref === "dark" ||
+          (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

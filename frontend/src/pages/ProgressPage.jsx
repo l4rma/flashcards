@@ -51,14 +51,14 @@ export default function ProgressPage() {
         Progress
       </h1>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex items-start justify-between">
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex items-start justify-between">
         <Stat icon="🔥" value={stats.current_streak} label={`best ${stats.longest_streak}`} />
         <Stat icon={<CoinIcon className="w-5 h-5" />} value={stats.coins} label="coins" />
         <Stat icon="📚" value={cards.length} label="cards" />
         <Stat icon="🎯" value={accuracy === null ? "—" : `${accuracy}%`} label="accuracy" />
       </div>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg p-6 flex flex-col gap-5">
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-5">
         <h2 className="font-display font-semibold text-lg text-ink">Daily quests</h2>
         {quests.map((q) => (
           <div key={q.key} className="flex flex-col gap-1.5">
@@ -103,7 +103,7 @@ export default function ProgressPage() {
               key={a.key}
               type="button"
               onClick={() => setSelected(a)}
-              className={`flex flex-col items-center justify-center gap-1 rounded-2xl shadow-md p-4 aspect-square transition active:scale-95 ${
+              className={`flex flex-col items-center justify-center gap-1 rounded-2xl shadow-md ring-1 ring-ink/10 p-4 aspect-square transition active:scale-95 ${
                 a.unlocked ? "bg-surface" : "bg-surface/60 grayscale opacity-50"
               }`}
             >
@@ -122,7 +122,7 @@ export default function ProgressPage() {
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-surface rounded-3xl shadow-lg p-6 max-w-xs w-full flex flex-col items-center gap-3 text-center"
+            className="bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 max-w-xs w-full flex flex-col items-center gap-3 text-center"
             onClick={(e) => e.stopPropagation()}
           >
             <span className="text-5xl">{selected.badge}</span>

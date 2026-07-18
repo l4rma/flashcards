@@ -6,7 +6,7 @@ function StackEdges({ depth }) {
   return (
     <>
       {depth >= 2 && (
-        <div className="absolute inset-0 translate-y-5 translate-x-4 rotate-6 rounded-3xl bg-primary-light shadow-md" />
+        <div className="absolute inset-0 translate-y-5 translate-x-4 rotate-6 rounded-3xl bg-primary-light shadow-md ring-1 ring-ink/5" />
       )}
       <div className="absolute inset-0 translate-y-2.5 translate-x-2 rotate-3 rounded-3xl bg-surface shadow-md ring-1 ring-ink/5" />
     </>
@@ -16,7 +16,7 @@ function StackEdges({ depth }) {
 function CardFace({ word, hint, variant }) {
   return (
     <div
-      className={`absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-3xl shadow-lg px-6 [backface-visibility:hidden] ${
+      className={`absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-3xl shadow-lg ring-1 ring-ink/10 px-6 [backface-visibility:hidden] ${
         variant === "front" ? "bg-surface" : "bg-primary-light [transform:rotateY(180deg)]"
       }`}
     >

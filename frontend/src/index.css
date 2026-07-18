@@ -34,6 +34,42 @@
   --color-coin-dark: #c6932b;
 }
 
+/* Dark theme — a warm "studying by lamplight" dark, not a cold blue-black
+   tech dark mode, to stay consistent with the light theme's warm cream
+   identity. Toggled by adding/removing `dark` on <html> (see theme.js) —
+   deliberately plain CSS custom-property overrides rather than sprinkling
+   `dark:` variants through every component: every color in this app
+   already flows through these tokens, so every existing bg, text, ring
+   and shadow utility adapts automatically with zero component edits.
+
+   Several tokens swap which end of light/dark they sit at, not just get
+   inverted uniformly, because they serve two different roles that pull in
+   opposite directions once the base surface is dark: the "-dark" variants
+   (primary-dark, wrong-dark) are used far more often as text sitting on a
+   tinted surface (needs to get lighter on a dark background to stay
+   legible) than as a button hover-darken (the minority use, and a hover
+   state lightening instead of darkening reads fine too) — so in dark mode
+   they resolve lighter than their base color, not darker. */
+html.dark {
+  --color-primary: #5eb37f;
+  --color-primary-dark: #8fd9ac;
+  --color-primary-light: #22332a;
+
+  --color-background: #1e1b17;
+  --color-surface: #29241e;
+  --color-ink: #f2ede3;
+  --color-ink-soft: #b6ac9c;
+
+  --color-wrong: #e2776c;
+  --color-wrong-dark: #f3ada5;
+
+  --color-progress: #a98ee6;
+  --color-progress-track: #2c2438;
+
+  --color-coin: #eec164;
+  --color-coin-dark: #9c7327;
+}
+
 body {
   margin: 0;
   background: var(--color-background);

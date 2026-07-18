@@ -101,6 +101,27 @@ design these tasks implement.
       started. Larger scope than the coin fix: achievement/quest badges
       alone are a couple dozen distinct icons (see `achievements.py`/
       `quests.py`), so this is a real design pass, not a quick swap.
+- [x] **Togglable dark theme** (user request, using the `frontend-design`
+      skill again): Light/Auto/Dark toggle on the Admin page
+      (`components/ThemeToggle.jsx` + `ThemeIcon.jsx` — custom SVGs, not
+      sun/moon emoji, consistent with the coin-icon reasoning above),
+      persisted in `localStorage` (`theme.js`), defaulting to "Auto"
+      (`prefers-color-scheme`, stays live if the OS theme changes
+      mid-session). A tiny inline script in `index.html` applies the class
+      synchronously pre-paint to avoid a flash-of-wrong-theme. Implemented
+      as a single `html.dark { --color-*: ... }` override block in
+      `index.css` — since every color in the app already flows through
+      these named tokens, this needed **zero component-level color
+      changes**; only fix needed was adding `ring-1 ring-ink/10` to every
+      surface card, since plain `shadow-md`/`shadow-lg` alone (Tailwind's
+      default near-black shadow color) stopped giving visible card edges
+      once the background itself went dark. See `DESIGN.md`'s new "Dark
+      theme" section for the full palette/rationale (warm "lamplight" dark,
+      not a cold inverted tech palette; several tokens deliberately swap
+      which end of light/dark they resolve to rather than inverting
+      uniformly). Verified visually (light + dark, all pages/modals) via
+      the same throwaway Playwright harness pattern as the earlier
+      redesign; `npm run build` + `oxlint` both clean.
 
 ## Phase 4 — Gamification: streak + coins
 - [x] `Stats` singleton model/table (`coins`, `current_streak`,

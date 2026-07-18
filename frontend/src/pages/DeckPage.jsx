@@ -127,7 +127,7 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
               <div
                 key={card.id}
                 style={editingId === card.id ? undefined : { transform: `rotate(${tiltFor(card.id)}deg)` }}
-                className="relative bg-surface rounded-2xl shadow-md px-4 py-3.5 flex items-center justify-between gap-3"
+                className="relative bg-surface rounded-2xl shadow-md ring-1 ring-ink/10 px-4 py-3.5 flex items-center justify-between gap-3"
               >
                 <span className="absolute top-3 left-3 w-2 h-2 rounded-full bg-background ring-1 ring-ink/10" />
                 {editingId === card.id ? (

@@ -23,7 +23,7 @@ export default function CelebrationModal({ celebration, onDismiss }) {
       onClick={onDismiss}
     >
       <div
-        className="bg-surface rounded-3xl shadow-lg p-6 max-w-xs w-full flex flex-col items-center gap-2 text-center"
+        className="bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 max-w-xs w-full flex flex-col items-center gap-2 text-center"
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-xs font-bold uppercase tracking-wide text-primary-dark">

@@ -49,6 +49,52 @@ executed better," not a palette replacement:
   deliberately distinct from primary green so "goal progress" reads as its
   own category, not the same thing as "Correct"): `#8A63D2`, track
   `#ECE5F9`
+- Coin gold (`components/CoinIcon.jsx`, replacing the 🪙 emoji — see Dark
+  theme section for why a custom SVG at all): `#E8B84B`, rim/detail
+  `#C6932B`
+
+## Dark theme
+
+Togglable (Light / Auto / Dark, `components/ThemeToggle.jsx` on the Admin
+page), persisted in `localStorage` and defaulting to "Auto" (follows
+`prefers-color-scheme`, stays live if the OS theme changes mid-session).
+A tiny inline script in `index.html` applies the `dark` class to `<html>`
+synchronously before first paint, so there's no flash-of-wrong-theme on
+load — `theme.js` duplicates a couple of its lines for exactly this reason
+(it has to run before any module import is possible).
+
+**Every color in the app already flows through the named tokens above**
+(`bg-primary`, `text-ink`, etc.), so dark mode is implemented as a single
+`html.dark { --color-background: ...; ... }` block in `index.css`
+overriding those same custom properties — zero `dark:` variants sprinkled
+through component files, zero per-component color logic. This works
+because Tailwind v4 compiles `@theme` into a *layered* `:root`/`:host`
+rule, and unlayered CSS (our plain `html.dark` block) always wins over any
+layered rule in the cascade regardless of selector specificity.
+
+Chosen as a warm "studying by lamplight" dark (near-black `#1E1B17`
+background, warm dark-taupe `#29241E` surfaces) rather than a cold
+blue-black tech dark mode, to stay consistent with the light theme's warm
+cream identity rather than reading as a generic inverted palette. Several
+tokens deliberately swap which *end* of light/dark they resolve to, not
+just invert uniformly: the `-dark` variants (`primary-dark`, `wrong-dark`)
+are used far more often as text sitting on a tinted surface (Edit/Delete
+pills, ghost buttons, modal captions) than as a button hover-darken, and
+text needs to get *lighter* against a dark surface to stay legible — so in
+dark mode these resolve lighter than their base color, accepting that the
+minority hover-darken usages lighten on hover instead, which reads fine.
+
+**Plain `shadow-md`/`shadow-lg` alone stopped being enough for card
+edges once the background went dark** — Tailwind's default shadow color
+is a fixed near-black, which is nearly invisible against an
+already-dark surface (confirmed by screenshot: the Admin danger-zone card,
+which already had a `ring`, read with a clear boundary in dark mode while
+every plain `bg-surface` card didn't). Fixed by adding `ring-1
+ring-ink/10` to every surface card — since `ink` itself flips between dark
+(light mode, a barely-visible dark hairline on white) and light (dark
+mode, a visible light hairline on dark), one ring utility gives the
+correct subtle boundary in both themes with no dark-mode-specific classes
+needed.
 
 ## Navigation
 
