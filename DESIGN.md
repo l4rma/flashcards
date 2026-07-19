@@ -101,8 +101,9 @@ needed.
 
 **Moved to a floating pill bar fixed to the bottom of the viewport**
 (user request, thinking mobile-first) — icon-only, same emoji-badge icon
-language as before (🏋️ Train, 📚 Deck, 📈 Progress, ⚙️ Settings), each with an
-`aria-label`/`title` for accessibility. Deliberately kept **universal
+language as before (🏋️ Train, 📚 Deck, 📈 Progress, 🎁 Collection, ⚙️
+Settings — grew from four icons to five with the Collection tab), each
+with an `aria-label`/`title` for accessibility. Deliberately kept **universal
 across all viewport widths, not just mobile** — this app already commits
 to a single narrow centered column even on desktop (see Layout, below),
 so a bottom bar reads just as natural there as on a phone; a

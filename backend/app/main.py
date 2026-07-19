@@ -6,6 +6,7 @@ from mangum import Mangum
 
 from app import achievements as achievements_mod
 from app import cards as cards_mod
+from app import collection as collection_mod
 from app import leveling as leveling_mod
 from app import quests as quests_mod
 from app import stats as stats_mod
@@ -18,9 +19,13 @@ from app.schemas import (
     CardCreate,
     CardOut,
     CardUpdate,
+    CollectionOut,
+    EquipRequest,
     Grade,
     GradeRequest,
     LevelUpNotice,
+    LootboxOpenResult,
+    LootboxTier,
     ProfileUpdate,
     QuestCompletionNotice,
     QuestOut,
@@ -235,6 +240,58 @@ def read_quests(store: Store = Depends(get_store), user_id: str = Depends(get_cu
     stats_mod.sync_day(store, user_id, stats, date.today())
     stats_mod.save_stats(store, stats)
     return quests_mod.list_quests(store, user_id, stats)
+
+
+@app.get("/collection", response_model=CollectionOut)
+def read_collection(store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)):
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    return collection_mod.describe_collection(stats)
+
+
+@app.post("/collection/equip", response_model=StatsOut)
+def equip_collectible(
+    payload: EquipRequest, store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)
+):
+    """Sets equipped_title/equipped_theme — both optional/independent, same
+    omit-vs-null convention as PATCH /profile. Raises 400 if a given key
+    isn't owned (collection.equip_title/equip_theme)."""
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    if "title" in payload.model_fields_set:
+        collection_mod.equip_title(stats, payload.title)
+    if "theme" in payload.model_fields_set:
+        collection_mod.equip_theme(stats, payload.theme)
+    stats_mod.save_stats(store, stats)
+    return StatsOut.model_validate(stats)
+
+
+@app.post("/collection/lootboxes/{tier}/buy", response_model=CollectionOut)
+def buy_lootbox(
+    tier: LootboxTier, store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)
+):
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    collection_mod.buy_lootbox(stats, tier.value)
+    stats_mod.save_stats(store, stats)
+    return collection_mod.describe_collection(stats)
+
+
+@app.post("/collection/lootboxes/{tier}/open", response_model=LootboxOpenResult)
+def open_lootbox(
+    tier: LootboxTier, store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)
+):
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    reward = collection_mod.open_lootbox(stats, tier.value)
+    stats_mod.save_stats(store, stats)
+
+    # A coin/xp reward can cross an achievement or level threshold, same
+    # as any other coin/xp-earning action in this app.
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up = _finalize_level(store, user_id, stats)
+
+    return LootboxOpenResult(
+        **reward,
+        newly_unlocked_achievements=_unlock_notices(newly_unlocked),
+        newly_leveled_up=newly_leveled_up,
+    )
 
 
 handler = Mangum(app, api_gateway_base_path="/api")

@@ -496,6 +496,67 @@ No dedicated `GET /level` endpoint — `xp`/`level` ride along on the
 existing `GET /stats` (`StatsOut`), same reasoning as profile identity
 above (`Stats` already is the one-item-per-user blob).
 
+### Collection (titles, card-colour/font themes, lootboxes)
+
+The "chests" feature flagged as unscoped back in the Achievements phase —
+built as one cluster (`app/collection.py`) since titles/themes and
+lootboxes aren't meaningfully useful alone: a title you can never obtain
+isn't real, and a lootbox with nothing in it isn't real.
+
+**Definitions live in code, not the database** — same pattern as
+`AchievementDef`/`QuestDef`. `TitleDef` (key, display name, `rarity`:
+common/rare/epic/legendary, display-only) and `ThemeDef` (key, name,
+rarity, `colors` — a dict of CSS custom-property overrides applied at the
+document root when equipped, see Frontend below — and an optional
+`font_display` override) each currently have a small fixed list (11
+titles, 7 themes) spanning all four rarities. `LootboxTierDef` defines
+three tiers — Bronze (50 coins), Silver (150), Gold (400) — each with a
+`REWARD_WEIGHTS` table over four categories (coins/xp/title/theme);
+`title`/`theme` are dropped from that tier's roll entirely (not just
+given a 0 weight) once nothing new is left to award in that category, so
+a near-completionist never wastes a roll. Coin/XP reward amounts scale by
+tier (`COIN_REWARD_RANGE`/`XP_REWARD_RANGE`, e.g. bronze 10-30, gold
+100-200).
+
+**`Stats` gains**: `owned_titles`/`owned_themes` (key lists),
+`equipped_title`/`equipped_theme` (nullable keys, at most one of each
+equipped at a time), and `lootbox_bronze`/`lootbox_silver`/`lootbox_gold`
+(int inventory counts — chosen as three flat fields over a nested
+map/dict, consistent with every other DynamoDB-backed counter in this
+app being a flat attribute). This **is** gamification progress (unlike
+profile identity), so it's reset by "Reset all progress" — same
+reasoning as xp/level (Open decisions #15).
+
+**Acquiring lootboxes**: purchasable with coins (`POST
+/collection/lootboxes/{tier}/buy`) *and* earned free — every level-up
+grants one Bronze box (`leveling.LEVEL_UP_LOOTBOX_REWARD`, folded into
+`finalize_level`'s existing per-level-up `update_item` call rather than a
+second write). No achievement-tied box grants yet (a documented
+simplification — flag if you want specific achievement milestones to
+also grant boxes).
+
+**Opening a box** (`POST /collection/lootboxes/{tier}/open`,
+`collection.open_lootbox`) decrements inventory and rolls one reward via
+`roll_lootbox_reward`, mutating `Stats` directly and persisted via the
+same plain `save_stats` read-modify-write the rest of `stats.py` already
+uses — deliberately **not** a `transact_write_items` call the way
+achievement/quest unlocks are, since opening a box is a single explicit
+user action with nothing to guard against double-processing (unlike
+achievement checks, which re-run on every grade and need a completion-row
+idempotency guard). A coin or XP reward from a box can cross an
+achievement or level threshold, so the route re-runs
+`check_and_unlock_achievements`/`finalize_level` afterward and returns
+any resulting notices alongside the reward itself
+(`LootboxOpenResult.newly_unlocked_achievements`/`newly_leveled_up`).
+
+**Equipping** (`POST /collection/equip`, body `{title?, theme?}` — same
+omit-vs-null convention as `PATCH /profile`) requires ownership
+(`collection.equip_title`/`equip_theme` raise 400 otherwise); `null`
+un-equips. `GET /collection` returns every title/theme definition
+annotated with `owned`/`equipped`, plus each lootbox tier's info and
+current inventory count — the single source of truth `CollectionPage`
+renders directly, no client-side merging needed.
+
 ### Celebration popup (achievements, daily quests, and level-ups)
 
 Whenever an achievement is newly unlocked, a daily quest is newly
@@ -575,6 +636,16 @@ lifecycle.
 - `GET /quests` → list of today's daily quests with `completed`/
   `progress_current`/`progress_target`/`coin_reward` per key (see Daily
   quests, above). Also syncs the daily reset for the day on first call.
+- `GET /collection` → `{ titles, themes, lootboxes }` (see Collection,
+  above) — every title/theme definition with `owned`/`equipped`, every
+  lootbox tier with its cost and current inventory count.
+- `POST /collection/equip` → `{ title?, theme? }`, returns updated
+  `StatsOut`. Requires ownership (400 otherwise); `null` un-equips.
+- `POST /collection/lootboxes/{tier}/buy` → deducts coins, returns the
+  updated `CollectionOut`.
+- `POST /collection/lootboxes/{tier}/open` → rolls and applies one
+  reward, returns `{ kind, key?, name?, amount?,
+  newly_unlocked_achievements, newly_leveled_up }`.
 - `DELETE /cards` — deletes every card. Admin-only, destructive.
 - No new grading endpoint — `POST /cards/{id}/grade` (existing) now also
   updates `Stats` as a side effect alongside the card's schedule.
@@ -611,6 +682,37 @@ only on the completed tile of a tiered family — a "Previously completed"
 list of earlier tiers already unlocked in that family, each with its own
 unlock date/time. Standalone achievements and the "next tier" tile never
 show that section (nothing to list).
+
+### Collection page
+
+A new "Collection" tab (5th nav icon, 🎁 — bottom pill bar grows from four
+icons to five): a **Lootboxes** card listing all three tiers (name, coin
+cost, current inventory count, Buy/Open buttons — Open disabled at 0),
+then a **Titles** grid and a **Card colours** grid, both reusing the
+achievement grid's visual language (owned tiles full color, unowned
+dimmed/grayscale, click to equip — clicking an already-equipped tile
+un-equips it). Each theme tile shows a small color swatch (the theme's
+`primary` value) alongside its name/rarity so you can preview before
+equipping. Opening a box shows a full-screen reveal (icon by reward kind
+— 🪙 coins, ⚡ xp, 🏷️ title, 🎨 theme — plus the amount or name won); any
+achievement unlock or level-up the reward happened to trigger still queues
+through the normal `App.jsx` celebration queue on top of that reveal.
+
+**Applying an equipped theme**: `frontend/src/collectionTheme.js`'s
+`applyCollectionTheme(theme)` sets the theme's `colors`/`font_display` as
+**inline** CSS custom properties directly on `<html>` (not a class) —
+inline styles win the cascade over both the light default `@theme` values
+*and* the `html.dark {...}` override block (see `DESIGN.md`'s Dark theme
+section), so an equipped theme's accent color reads identically in light
+and dark mode; only the untouched neutral background/surface/ink tokens
+keep responding to the dark toggle. Applied in two places: once by
+`CollectionPage` itself immediately on equip (no round trip needed, the
+theme data is already in hand), and once by `App.jsx` on every app load
+(fetches `GET /collection` alongside `GET /stats` purely to find the
+currently-equipped theme and re-apply it — a brief flash of the default
+green before this resolves is an accepted, subtle cosmetic gap, unlike
+light/dark's own synchronous pre-paint script in `index.html`, which
+exists specifically because *that* flash is much more jarring).
 
 ### Profile identity (username + avatar)
 
@@ -838,3 +940,23 @@ these you'd like changed:
     lifetime-fields-survive-resets pattern already caused real bugs once
     — see #5 above — not because leveling is inherently less permanent
     than achievements in spirit). See `TASKS.md` Phase 10 and `app/leveling.py`.
+16. **Lootbox tier costs/rewards, and the decision to skip achievement-
+    tied box grants for now.** Bronze/Silver/Gold cost 50/150/400 coins;
+    reward-category weights and coin/XP ranges scale by tier (see
+    Collection, above) — all picked to feel roughly proportional to the
+    achievement coin-reward scale (`REWARD_BY_TIER_INDEX`), not derived
+    from any formula. Boxes are earned free only via level-ups (one
+    Bronze per level) — no specific achievement milestone grants a box
+    yet, a deliberate scope cut to ship this phase without also editing
+    every achievement tier's reward. Flag any of these numbers, or ask
+    for achievement-tied box grants, if the balance feels off in
+    practice — all are easy, isolated changes in `app/collection.py`.
+17. **Card-colour themes re-tint the whole app's primary accent, not
+    individual cards.** "Card colours (select cards)" was read as
+    "select which colour scheme to apply," not "assign a colour to a
+    specific card" — the equipped theme changes `--color-primary`/
+    `-dark`/`-light` globally (buttons, the flip card, nav highlight,
+    etc.), the same three tokens dark mode itself overrides. Flag if you
+    actually wanted per-card tagging instead — that's a materially
+    different feature (closer to Phase 13's per-card labels than a
+    theme).

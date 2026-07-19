@@ -116,6 +116,8 @@ class StatsOut(BaseModel):
 
     username: str | None = None
     avatar_key: str | None = None
+    equipped_title: str | None = None
+    equipped_theme: str | None = None
     xp: int
     level: int
     coins: int
@@ -156,3 +158,68 @@ class QuestOut(BaseModel):
     progress_current: int
     progress_target: int
     coin_reward: int
+
+
+class LootboxTier(str, Enum):
+    bronze = "bronze"
+    silver = "silver"
+    gold = "gold"
+
+
+class EquipRequest(BaseModel):
+    """POST /collection/equip body. Both fields optional/independently
+    settable, same omit-vs-null convention as ProfileUpdate — omit a
+    field to leave it unchanged, send null to un-equip. Ownership is
+    checked in collection.equip_title/equip_theme (needs the current
+    Stats, not just the request body, so it can't be a field_validator
+    here)."""
+
+    title: str | None = None
+    theme: str | None = None
+
+
+class TitleOut(BaseModel):
+    key: str
+    name: str
+    rarity: str
+    owned: bool
+    equipped: bool
+
+
+class ThemeOut(BaseModel):
+    key: str
+    name: str
+    rarity: str
+    colors: dict[str, str]
+    font_display: str | None
+    owned: bool
+    equipped: bool
+
+
+class LootboxTierOut(BaseModel):
+    tier: str
+    name: str
+    coin_cost: int
+    count: int
+
+
+class CollectionOut(BaseModel):
+    titles: list[TitleOut]
+    themes: list[ThemeOut]
+    lootboxes: list[LootboxTierOut]
+
+
+class LootboxOpenResult(BaseModel):
+    """Response of POST /collection/lootboxes/{tier}/open — describes what
+    was won (kind is "coins" | "xp" | "title" | "theme"; key/name are set
+    only for title/theme wins, amount only for coins/xp wins) plus any
+    achievement unlocks or level-ups the reward happened to trigger (a
+    coin/xp windfall can cross either threshold, same as any other
+    coin/xp-earning action)."""
+
+    kind: str
+    key: str | None = None
+    name: str | None = None
+    amount: int | None = None
+    newly_unlocked_achievements: list[AchievementUnlockNotice] = []
+    newly_leveled_up: list[LevelUpNotice] = []

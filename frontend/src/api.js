@@ -89,3 +89,22 @@ export function getAchievements() {
 export function getQuests() {
   return request("/quests");
 }
+
+export function getCollection() {
+  return request("/collection");
+}
+
+export function equipCollectible(fields) {
+  return request("/collection/equip", {
+    method: "POST",
+    body: JSON.stringify(fields),
+  });
+}
+
+export function buyLootbox(tier) {
+  return request(`/collection/lootboxes/${tier}/buy`, { method: "POST" });
+}
+
+export function openLootbox(tier) {
+  return request(`/collection/lootboxes/${tier}/open`, { method: "POST" });
+}

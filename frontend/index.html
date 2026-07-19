@@ -6,8 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Playfair Display / Cormorant Garamond: alternate display fonts for
+         two Collection card-colour themes (Midnight, Gold Leaf — see
+         backend/app/collection.py's ThemeDef.font_display), loaded
+         upfront alongside the default Fraunces/Nunito pairing so
+         equipping one of those themes needs no extra network round trip. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Playfair+Display:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
     <title>Flash Cards</title>

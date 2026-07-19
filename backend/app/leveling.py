@@ -14,6 +14,12 @@ LEVEL_XP_STEP = 100
 # triggered the level-up — awarded by finalize_level below, separate from
 # the achievement/quest tier reward scale (REWARD_BY_TIER_INDEX).
 LEVEL_UP_COIN_REWARD = 20
+# Bronze lootboxes granted per level gained — the simplest possible
+# acquisition hook for collection.py's lootbox system (every level-up
+# grants one, no separate milestone/tier logic). Deliberately just a
+# field name here rather than importing collection.py — see the comment
+# in finalize_level below for why.
+LEVEL_UP_LOOTBOX_REWARD = 1
 
 
 def xp_for_level(level: int) -> int:
@@ -52,13 +58,25 @@ def finalize_level(store: Store, user_id: str, stats: Stats) -> int:
         return 0
 
     bonus = LEVEL_UP_COIN_REWARD * levels_gained
+    lootbox_bonus = LEVEL_UP_LOOTBOX_REWARD * levels_gained
+    # lootbox_bronze lives conceptually in collection.py, not here — but
+    # importing collection.py from leveling.py would be a backwards
+    # dependency (collection.py doesn't need to know about leveling, and
+    # shouldn't have to), so this just touches the field directly by name,
+    # same as achievements.py/quests.py already touch xp (owned by
+    # leveling.py) directly in their own reward transactions. One more
+    # attribute in the same plain update, not a second write.
     store.stats.update_item(
         Key={"user_id": user_id},
-        UpdateExpression="SET #level = :level ADD coins :bonus, lifetime_coins_earned :bonus",
+        UpdateExpression=(
+            "SET #level = :level ADD coins :bonus, lifetime_coins_earned :bonus, "
+            "lootbox_bronze :lootbox_bonus"
+        ),
         ExpressionAttributeNames={"#level": "level"},
-        ExpressionAttributeValues={":level": new_level, ":bonus": bonus},
+        ExpressionAttributeValues={":level": new_level, ":bonus": bonus, ":lootbox_bonus": lootbox_bonus},
     )
     stats.level = new_level
     stats.coins += bonus
     stats.lifetime_coins_earned += bonus
+    stats.lootbox_bronze += lootbox_bonus
     return levels_gained

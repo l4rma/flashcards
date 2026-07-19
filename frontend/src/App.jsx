@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { getStats } from "./api";
+import { getCollection, getStats } from "./api";
 import { handleRedirectCallback, isAuthenticated, login } from "./auth";
 import CelebrationModal from "./components/CelebrationModal";
 import StatsBar from "./components/StatsBar";
+import { applyCollectionTheme } from "./collectionTheme";
+import CollectionPage from "./pages/CollectionPage";
 import DeckPage from "./pages/DeckPage";
 import ProgressPage from "./pages/ProgressPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -12,6 +14,7 @@ const TABS = [
   { key: "train", label: "Train", icon: "🏋️" },
   { key: "deck", label: "Deck", icon: "📚" },
   { key: "progress", label: "Progress", icon: "📈" },
+  { key: "collection", label: "Collection", icon: "🎁" },
   { key: "settings", label: "Settings", icon: "⚙️" },
 ];
 
@@ -38,6 +41,14 @@ function App() {
         }
         setAuthReady(true);
         setStats(await getStats());
+        // Applies the equipped color/font theme (if any) at startup — a
+        // brief flash of the default green before this resolves is an
+        // acceptable, subtle cosmetic gap (unlike light/dark, which has
+        // its own synchronous pre-paint script in index.html to avoid a
+        // much more jarring full-background flash).
+        const collection = await getCollection();
+        const equipped = collection.themes.find((t) => t.equipped);
+        applyCollectionTheme(equipped || null);
       } catch (err) {
         // A `?code=` can't be exchanged twice, so a failed attempt (e.g. a
         // lost/mismatched PKCE verifier — seen on mobile Safari, where
@@ -125,6 +136,14 @@ function App() {
           />
         )}
         {tab === "progress" && <ProgressPage key={tab} />}
+        {tab === "collection" && (
+          <CollectionPage
+            key={tab}
+            onChanged={refreshStats}
+            onAchievementsUnlocked={handleAchievementsUnlocked}
+            onLeveledUp={handleLeveledUp}
+          />
+        )}
         {tab === "settings" && <SettingsPage key={tab} onChanged={refreshStats} />}
       </main>
 

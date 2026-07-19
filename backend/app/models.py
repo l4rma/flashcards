@@ -96,3 +96,13 @@ class Stats:
     total_cards: int = 0
     total_correct: int = 0
     total_wrong: int = 0
+    # Collection (titles/themes) + lootboxes (app/collection.py) — reset by
+    # "reset all progress", same reasoning as xp/level above: this is
+    # earned gamification progress, not permanent identity.
+    owned_titles: list[str] = field(default_factory=list)
+    owned_themes: list[str] = field(default_factory=list)
+    equipped_title: str | None = None
+    equipped_theme: str | None = None
+    lootbox_bronze: int = 0
+    lootbox_silver: int = 0
+    lootbox_gold: int = 0

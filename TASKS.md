@@ -759,29 +759,58 @@ trigger). This is the "chests" feature flagged as unscoped back in Phase
 5 — titles/themes and lootboxes are built together since neither is
 meaningfully useful alone (a title you can never obtain isn't real; a
 lootbox with nothing in it isn't real).
-- [ ] Static `CollectibleDef`-style definitions (same code-not-database
-      pattern as `achievements.py`/`quests.py`) for **titles** (a display
-      string) and **card-colour/font themes** (a named theme + its CSS
-      token overrides).
-- [ ] `Stats` gains `owned_titles`/`owned_themes` (key lists),
-      `equipped_title`/`equipped_theme` (nullable keys), and a lootbox
-      inventory (**assumed** a count per tier — exact tier names/count
-      pinned down when this phase starts).
-- [ ] Lootbox tiers, each with a coin cost (**assumed** purchasable *and*
-      earnable free from level-ups/achievement milestones) and a
-      weighted-random reward table: coins, XP, an unowned title, an
-      unowned theme.
-- [ ] Endpoint to open one box from inventory (reward applied + inventory
-      decremented in one `transact_write_items` call, same pattern as
-      achievement/quest rewards) and an endpoint to equip a title/theme.
-- [ ] New **Collection** page/nav tab (bottom pill bar grows from 4 icons
-      to 5): browse owned + not-yet-owned titles/themes (locked ones
-      dimmed, same visual language as the achievement grid), equip one of
-      each, and a lootbox section to open boxes with a reveal animation.
-- [ ] **Assumed** scope for themes: the equipped theme re-tints
-      `FlipCard`'s surface/accent color (and swaps the display font, if
-      the theme includes one) app-wide — not a per-individual-card
-      color tag. Flag if you actually meant per-card colours instead.
+- [x] `app/collection.py` (new): static `TitleDef` (11 titles) and
+      `ThemeDef` (7 themes, both across common/rare/epic/legendary
+      rarities) definitions, same code-not-database pattern as
+      `achievements.py`/`quests.py`. `LootboxTierDef` × 3 (Bronze 50
+      coins / Silver 150 / Gold 400), `REWARD_WEIGHTS` per tier over
+      coins/xp/title/theme categories (title/theme dropped from the roll
+      once nothing new is left in that category, not just weighted to 0).
+- [x] `Stats` gains `owned_titles`/`owned_themes` (key lists),
+      `equipped_title`/`equipped_theme` (nullable keys), and
+      `lootbox_bronze`/`lootbox_silver`/`lootbox_gold` (flat int counts,
+      not a nested map — consistent with every other DynamoDB counter in
+      this app). Reset by "Reset all progress" (this is gamification
+      progress, same reasoning as xp/level).
+- [x] Acquisition: `POST /collection/lootboxes/{tier}/buy` (coins →
+      inventory) *and* free via level-up — `leveling.finalize_level`
+      grants 1 Bronze box per level gained (folded into its existing
+      per-level-up `update_item`, not a second write). **Scope cut**: no
+      achievement-tied box grants yet (see SPEC.md Open decisions #16).
+- [x] `POST /collection/lootboxes/{tier}/open` (`collection.open_lootbox`)
+      — decrements inventory, rolls a reward via `roll_lootbox_reward`,
+      mutates `Stats` directly and persists via the existing plain
+      `save_stats` (deliberately **not** a `transact_write_items` call —
+      opening a box is a single explicit action with nothing to guard
+      against double-processing, unlike achievement unlocks which
+      re-check on every grade). Re-runs achievement/level-up checks
+      afterward since a coin/xp reward can cross either threshold; both
+      surface on the response alongside the reward itself.
+      `POST /collection/equip` (body `{title?, theme?}`, same
+      omit-vs-null convention as `PATCH /profile`) requires ownership.
+- [x] New **Collection** page/nav tab (🎁, bottom pill bar grows from 4
+      icons to 5): a Lootboxes card (Buy/Open per tier), a Titles grid and
+      a Card-colours grid (both reusing the achievement grid's
+      owned-color/locked-dimmed visual language, click to equip/un-equip,
+      theme tiles show a color swatch), and a full-screen reveal modal on
+      box-open (icon by reward kind, amount or name won).
+- [x] Themes apply **app-wide** (not per-card) via
+      `frontend/src/collectionTheme.js`'s `applyCollectionTheme` — sets
+      the theme's colors/font as **inline** CSS custom properties on
+      `<html>`, which win the cascade over both the light defaults and
+      the `html.dark {...}` override block, so an equipped theme's accent
+      reads the same in light and dark mode. Applied on equip
+      (`CollectionPage`, immediate, no round trip) and on every app load
+      (`App.jsx` fetches `GET /collection` alongside `GET /stats` to
+      find and re-apply the currently-equipped theme). Two extra Google
+      Fonts (Playfair Display, Cormorant Garamond) added to
+      `index.html`'s existing font link for the two themes that override
+      `font_display`. See SPEC.md Open decisions #17 for the "app-wide,
+      not per-card" reading of your original "select cards" wording.
+- [x] 22 new backend tests (`test_collection.py` — pure logic:
+      roll/buy/open/equip; `test_collection_api.py` — end-to-end wiring
+      including level-up-grants-a-box and reset-clears-collection). 150
+      backend tests total. `npm run build` + `oxlint` clean.
 
 ## Phase 12 — Profile page redesign (Progress → Profile)
 Assembles Phases 9-11 — do last in this cluster since it depends on all

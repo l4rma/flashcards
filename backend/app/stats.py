@@ -49,6 +49,13 @@ def _stats_to_item(stats: Stats) -> dict:
         "total_cards": stats.total_cards,
         "total_correct": stats.total_correct,
         "total_wrong": stats.total_wrong,
+        "owned_titles": stats.owned_titles,
+        "owned_themes": stats.owned_themes,
+        "equipped_title": stats.equipped_title,
+        "equipped_theme": stats.equipped_theme,
+        "lootbox_bronze": stats.lootbox_bronze,
+        "lootbox_silver": stats.lootbox_silver,
+        "lootbox_gold": stats.lootbox_gold,
     }
 
 
@@ -85,6 +92,13 @@ def _item_to_stats(item: dict) -> Stats:
         total_cards=int(item.get("total_cards", 0)),
         total_correct=int(item.get("total_correct", 0)),
         total_wrong=int(item.get("total_wrong", 0)),
+        owned_titles=list(item.get("owned_titles") or []),
+        owned_themes=list(item.get("owned_themes") or []),
+        equipped_title=item.get("equipped_title"),
+        equipped_theme=item.get("equipped_theme"),
+        lootbox_bronze=int(item.get("lootbox_bronze", 0)),
+        lootbox_silver=int(item.get("lootbox_silver", 0)),
+        lootbox_gold=int(item.get("lootbox_gold", 0)),
     )
 
 
@@ -219,4 +233,11 @@ def reset_all_stats(stats: Stats) -> Stats:
     stats.quest_correct_today = 0
     stats.total_correct = 0
     stats.total_wrong = 0
+    stats.owned_titles = []
+    stats.owned_themes = []
+    stats.equipped_title = None
+    stats.equipped_theme = None
+    stats.lootbox_bronze = 0
+    stats.lootbox_silver = 0
+    stats.lootbox_gold = 0
     return stats
