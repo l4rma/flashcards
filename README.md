@@ -32,11 +32,14 @@ no network access, no real infrastructure needed.
 ## Repo layout
 
 - `backend/app/` — FastAPI app. `main.py` (routes + the Lambda `handler`),
-  `cards.py`/`stats.py`/`achievements.py`/`quests.py` (DynamoDB-backed
-  business logic), `scheduling.py` (pure spaced-repetition functions, no
-  storage dependency), `auth.py` (reads the Cognito claims API Gateway's
-  JWT authorizer already verified), `models.py` (plain dataclasses, no
-  ORM), `database.py` (the `Store` DynamoDB client wrapper).
+  `cards.py`/`stats.py`/`achievements.py`/`quests.py`/`leveling.py`/
+  `collection.py` (DynamoDB-backed business logic), `scheduling.py` (pure
+  spaced-repetition functions, no storage dependency), `prebuilt_decks/`
+  (parses the `*.txt` deck files bundled alongside it — add a file, get a
+  deck), `profile.py` (avatar/username constraints), `auth.py` (reads the
+  Cognito claims API Gateway's JWT authorizer already verified),
+  `models.py` (plain dataclasses, no ORM), `database.py` (the `Store`
+  DynamoDB client wrapper).
 - `frontend/` — React + Vite + Tailwind, built as a static bundle for S3.
 - `terraform/` — flat root module provisioning all of the above (DynamoDB,
   Lambda, API Gateway, Cognito, S3/CloudFront) + `terraform/bootstrap/`

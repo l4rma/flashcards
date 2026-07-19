@@ -44,6 +44,12 @@ everything:
   because it already worked as a friendly rounded sans, the pairing is
   what needed to change, not this face itself.
 
+Playfair Display *does* now appear in the app (a Collection theme, see
+Palette below) — not a reversal of the reasoning above, since it's an
+earned, occasional special-occasion accent behind ownership, not the
+app's own everyday display face the way it would read if it replaced
+Fraunces as the default.
+
 ## Palette
 
 Unchanged from the original brief — the redesign's brief was "same mood,
@@ -60,6 +66,18 @@ executed better," not a palette replacement:
 - Coin gold (`components/CoinIcon.jsx`, replacing the 🪙 emoji — see Dark
   theme section for why a custom SVG at all): `#E8B84B`, rim/detail
   `#C6932B`
+
+**`--color-primary`/`-dark`/`-light` are overridable at runtime** —
+Collection's card-colour themes (7 as of this writing, e.g. Ocean Blue,
+Sunset Coral, Midnight) let a user re-tint just these three tokens app-
+wide via `collectionTheme.js`, applied as inline styles that win the
+cascade over both this default palette and the dark-theme override block
+below (see Collection page, under Layout). Two of the rarer themes also
+swap `--font-display` away from Fraunces (Midnight → Playfair Display,
+Gold Leaf → Cormorant Garamond) — the only place in the app a non-
+default display font appears, and deliberately gated behind ownership
+rather than freely selectable, so it stays a special, earned moment
+rather than diluting Fraunces' role as this app's everyday voice.
 
 ## Dark theme
 
@@ -161,6 +179,15 @@ small plain text — it's real content now (today's numbers), not a caption.
   regardless of device width (see Layout, below), so "responsive" here
   means "wraps within a fixed-width card," not "changes at a screen-size
   breakpoint."
+- **Collection page** (new, Phase 11): a Lootboxes card (Buy/Open per
+  tier, plain rows — no tilt, this is the app's own UI chrome, not a
+  content list), then a Titles grid and a Card-colours grid, both reusing
+  the achievement grid's owned-color/locked-dimmed language (`grid-cols-2`
+  here rather than the achievement grid's `grid-cols-3`, since these
+  tiles carry more text — a name plus a rarity label, and themes also a
+  color swatch — than an achievement tile's badge-plus-title). Opening a
+  box shows a full-screen reveal reusing the achievement-unlock modal's
+  shell, tagged by reward kind (🪙/⚡/🏷️/🎨) rather than a fixed badge.
 - Admin page (renamed **Settings**) originally consolidated from three
   separate elevated cards down to two (settings grouped together, danger
   zone kept visually separate via a coral-tinted surface) — three cards

@@ -212,13 +212,21 @@ recreating uniquely-named resources for no functional benefit. Don't
   into: `scheduling.py` (spaced-repetition grading, storage-agnostic),
   `cards.py` (Card CRUD against DynamoDB), `stats.py` (gamification —
   streak/coins/session tracking, pure mutations + explicit I/O),
-  `achievements.py` (lifetime achievement unlocks), `quests.py` (daily
-  quests — same `Def`/`check_and_complete`/`list_*` shape as
-  `achievements.py`, but scoped to *today* instead of lifetime, and its
-  `target` is a `Callable[[Stats], int]` rather than a fixed number since
-  the training quest's target is derived from `session_initial_due`). All
-  date-dependent functions take an explicit `today: date | None` parameter
-  for testability instead of calling `date.today()` internally.
+  `achievements.py` (lifetime achievement unlocks — 66 tiers across 26
+  families/standalones as of the last count, growing with each new
+  feature area), `quests.py` (daily quests — same `Def`/
+  `check_and_complete`/`list_*` shape as `achievements.py`, but scoped to
+  *today* instead of lifetime, and its `target` is a
+  `Callable[[Stats], int]` rather than a fixed number since the training
+  quest's target is derived from `session_initial_due`), `leveling.py`
+  (XP/level derivation — `finalize_level` must be called *twice* per
+  request around achievement/quest checks, see Rules below),
+  `collection.py` (titles/card-colour themes/lootboxes), `profile.py`
+  (the preset avatar key list + username length limit), and the
+  `prebuilt_decks/` package (parses `*.txt` deck files bundled alongside
+  it — add a new file, get a new deck, no code change). All
+  date-dependent functions take an explicit `today: date | None`
+  parameter for testability instead of calling `date.today()` internally.
 - `Stats` is **one item per user** (partition key `user_id`) — this app is
   genuinely multi-tenant (Cognito login, each user gets their own separate
   deck/progress), not a single global singleton the way it was before the
@@ -280,27 +288,32 @@ recreating uniquely-named resources for no functional benefit. Don't
 - Only two grades exist: **Wrong** / **Correct** — no "Hard". Don't
   reintroduce a third grade without updating `SPEC.md`'s explicit "Open
   decisions" note about this.
-- Admin's "Reset all progress" (`POST /reset-all-progress`) resets
-  **everything** for the current user — every `Stats` field except
-  `total_cards`, and every per-card field
-  (`times_correct`/`times_wrong`/`mastered`/`last_grade` included), not
-  just scheduling state. This used to deliberately spare lifetime
-  achievement-tracking fields so achievements would "survive" a reset —
-  reversed after a real user-reported bug: the visible `coins` balance
-  permanently drifted from `lifetime_coins_earned` (which achievements
-  actually check), and achievements re-unlocked from a single new
-  card/grade right after a reset since their underlying numbers never
-  actually went back down (e.g. "Flawless Session" showing unlocked with
-  no session ever completed). Don't reintroduce the "lifetime fields
-  survive resets" pattern — deck-size achievements (`total_cards`) are the
-  one remaining, unavoidable exception (cards aren't deleted by this
-  action, only by the separate "Delete ALL cards"). This also must stay
-  scoped to the current user only — `clear_achievements`/
-  `clear_quest_completions`/the reset-all-progress card loop all filter by
-  `user_id`; a global unfiltered delete would wipe every user's data, not
-  just the one who clicked reset (this was an actual near-miss caught
-  while adding multi-tenancy — the original single-user code had no such
-  filter since there was only ever one user).
+- Settings' "Reset all progress" (`POST /reset-all-progress`, on the page
+  renamed Admin → Settings in the profile-identity phase) resets
+  **everything** for the current user *except* `total_cards` and profile
+  identity (`username`/`avatar_key`) — every other `Stats` field
+  (including everything added since: `xp`/`level`, Collection's
+  owned/equipped titles-themes and lootbox inventory, the practice/label
+  achievement-tracking flags) and every per-card field
+  (`times_correct`/`times_wrong`/`mastered`/`last_grade`/`label`
+  included), not just scheduling state. This used to deliberately spare
+  lifetime achievement-tracking fields so achievements would "survive" a
+  reset — reversed after a real user-reported bug: the visible `coins`
+  balance permanently drifted from `lifetime_coins_earned` (which
+  achievements actually check), and achievements re-unlocked from a
+  single new card/grade right after a reset since their underlying
+  numbers never actually went back down (e.g. "Flawless Session" showing
+  unlocked with no session ever completed). **Every new Stats field
+  added since must default to this same policy (reset) unless it's
+  identity, not progress** — `total_cards` and profile identity are the
+  only two carve-outs, and both are deliberate, narrow exceptions, not a
+  precedent to extend casually. This also must stay scoped to the
+  current user only — `clear_achievements`/`clear_quest_completions`/the
+  reset-all-progress card loop all filter by `user_id`; a global
+  unfiltered delete would wipe every user's data, not just the one who
+  clicked reset (this was an actual near-miss caught while adding
+  multi-tenancy — the original single-user code had no such filter since
+  there was only ever one user).
 - In `achievements.check_and_unlock_achievements`
   /`quests.check_and_complete_quests`, always evaluate every
   achievement/quest's condition from a snapshot taken *before* applying
@@ -326,6 +339,23 @@ recreating uniquely-named resources for no functional benefit. Don't
   for this specific call. If a `transact_write_items` call ever fails with
   an opaque `TypeError` cancellation reason again, check this first before
   assuming the item contents are wrong.
+- **`leveling.finalize_level` must be called twice per request, not
+  once** — once right after the routine stats mutation (so an
+  achievement condition reading `stats.level` sees the *current* level,
+  not one from before this request's xp gain), and once again after
+  achievements/quests are checked (to catch a level-up triggered by
+  *their* reward xp, which the first call couldn't have seen yet). This
+  was a real bug: calling it only once, after achievement checks (which
+  seemed natural — level derives from xp, and achievement/quest rewards
+  add xp too), meant a level-based achievement condition always
+  evaluated a stale level, delaying that unlock by one action. Caught by
+  a genuinely failing test, not a user report. `_finalize_level` in
+  `app/main.py` is a safe no-op when xp hasn't crossed a new threshold,
+  so calling it twice costs nothing when nothing changed — every route
+  that can move xp (`POST /cards`, `POST /cards/{id}/grade`,
+  `POST /stats/session-complete`, `POST /collection/lootboxes/{tier}/open`,
+  `POST /practice/completed`) follows this same before-*and*-after
+  pattern; don't add a new xp-moving route with only one call.
 - Don't add browser-based TTS/pronunciation (Web Speech API) again on this
   machine — confirmed dead end (Chromium-based browsers here expose zero
   voices to it even with `espeak-ng`/`speech-dispatcher` installed at the OS
