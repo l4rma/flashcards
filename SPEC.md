@@ -115,13 +115,23 @@ Pages:
   session, each row shows English/front first then French/back plus
   lifetime ✓/✗ counts and interval/due date). Adding a card refreshes the
   list underneath automatically. Combined per explicit request — they were
-  two thin pages that were almost always used together.
+  two thin pages that were almost always used together. The add-card form
+  blocks a duplicate: front is checked against every existing card's front
+  (English), back against every existing back (French), case-insensitively
+  — *not* cross-field, so a legitimate front/back swap between two cards
+  isn't flagged. This is a **frontend-only** check against the deck list
+  already loaded on the page (no extra request), debounced ~500ms so
+  warnings don't flicker mid-keystroke; the Add button disables and an
+  inline warning appears under whichever field matched. There is
+  deliberately no backend enforcement of this rule (see Open decisions) —
+  it's a UX nicety, not a data-integrity guarantee.
 - **Train** — the core loop: show English word (front) → click to flip and
   reveal the French word (back) → grade buttons → next card. Shows
   "Session complete" when the queue is empty.
 
-Top nav is icon-only (no text labels) — see `DESIGN.md`'s Navigation
-section for the bar styling and which emoji maps to which tab.
+Nav is a floating icon-only pill bar fixed to the bottom of the viewport
+(no text labels) — see `DESIGN.md`'s Navigation section for the bar
+styling and which emoji maps to which tab.
 
 Auth: Cognito Hosted UI (redirect + PKCE authorization-code flow). On load,
 if there's no valid access token, the app redirects to Cognito's login
@@ -137,7 +147,8 @@ still live). A logout action lives on the Admin page.
 **AWS, no local/Docker deployment target.** Final architecture:
 
 - **Backend**: FastAPI, packaged for AWS Lambda via `Mangum`
-  (`handler = Mangum(app)`), fronted by **API Gateway** (HTTP API) with a
+  (`handler = Mangum(app, api_gateway_base_path="/api")`), fronted by
+  **API Gateway** (HTTP API) with a
   native JWT authorizer validating **Cognito** tokens before Lambda is
   invoked — no hand-rolled JWT verification in the app.
 - **Database**: **DynamoDB**, four tables (`Cards`, `Stats`,
@@ -549,18 +560,21 @@ show that section (nothing to list).
 
 ### Admin page
 
-A plain "Admin" tab with just two actions, each behind a confirm dialog —
-no streak/coins/due-count summary shown here (that's the Progress page's
-job; showing it twice was redundant):
+A plain "Admin" tab — no streak/coins/due-count summary shown here (that's
+the Progress page's job; showing it twice was redundant):
+- **Appearance** — the Light/Auto/Dark theme toggle (`ThemeToggle.jsx`,
+  see `DESIGN.md`'s Dark theme section). The one non-destructive item
+  here; no confirm dialog.
 - **Reset all progress** — the single full reset (`POST
-  /reset-all-progress`): streak, coins, session baseline, every card's
-  scheduling, all achievement unlocks, and all daily-quest completions.
-  Previously this was split across
+  /reset-all-progress`, behind a confirm dialog): streak, coins, session
+  baseline, every card's scheduling, all achievement unlocks, and all
+  daily-quest completions. Previously this was split across
   four separate buttons (reset streak / reset coins / reset all stats /
   reset training progress); collapsed to one since the app doesn't need
   that granularity in practice.
-- **Delete ALL cards** — separate "danger zone", most destructive action
-  (actually removes card data, not just progress).
+- **Delete ALL cards** — separate "danger zone" (behind its own confirm
+  dialog), most destructive action (actually removes card data, not just
+  progress).
 
 Behind the same Cognito auth as every other page/route — scoped to
 whichever user is logged in, same as everywhere else. No extra
@@ -680,3 +694,16 @@ these you'd like changed:
    live SQL aggregates, so the actual port was mechanical, not a redesign.
    See `CLAUDE.md`'s Architecture section for the resulting DynamoDB
    schema and the plan referenced there for the full comparison.
+10. **Duplicate-card prevention is frontend-only, and same-field (front-vs-
+    front, back-vs-back), not cross-field.** Explicit choice when asked:
+    cross-field matching (checking a new front against existing *backs*
+    too) was rejected because it would wrongly block legitimate front/back
+    swaps between two different cards (e.g. one card's back becoming
+    another card's front). Backend enforcement was also explicitly
+    declined — the already-loaded deck list on the Deck page makes the
+    frontend check free (no extra request), and this app has no scenario
+    (no bulk import, no multi-device concurrent add) where a
+    frontend-only check would meaningfully under-protect. Revisit (add a
+    backend check in `cards.create_card`) if either of those assumptions
+    stops holding — e.g. a bulk-import feature that bypasses the Deck
+    page form.

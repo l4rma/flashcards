@@ -32,9 +32,12 @@ After finishing any change:
 There is **no local/Docker deployment target for this app** — this was a
 deliberate decision (not an oversight): the app runs exclusively on AWS
 (Lambda + API Gateway + DynamoDB + Cognito + CloudFront/S3, all via
-Terraform), and is developed/iterated on by deploying via CI/CD and
-testing against the real deployed environment ("testing in prod," since
-this is a personal single/small-multi-user app with no uptime SLA). Do not
+Terraform), and is developed/iterated on by deploying manually (see
+Deployment, below) and testing against the real deployed environment
+("testing in prod," since this is a personal single/small-multi-user app
+with no uptime SLA). There's no CI/CD pipeline yet — deploys are a person
+running the commands below, not a push-triggered pipeline (tracked as an
+open item in `TASKS.md`). Do not
 reintroduce `docker-compose.yml`, per-service `Dockerfile`s, a local
 SQLite backend, or a `uvicorn --reload`/`npm run dev` workflow as if
 they're still supported — they were explicitly retired. See the AWS
@@ -62,6 +65,12 @@ pip3 install --user --break-system-packages -r requirements.txt
 
 Frontend (`frontend/`) is built with `npm run build` for deployment to S3
 — there's no dev-server workflow to run day-to-day anymore (see above).
+`npx oxlint .` lints it (no separate config needed beyond what's in
+`package.json`). A temporary local `npm run dev` + a throwaway
+Playwright harness (mocked auth/API, deleted before finishing — never
+committed) is the established way to visually verify frontend/design
+changes before shipping, since there's no persistent dev-server workflow
+and the real app requires a live Cognito/API round trip.
 
 ## Deployment
 
@@ -92,6 +101,55 @@ creates/changes real infrastructure and costs money; treat it with the
 same care as any other irreversible action (see the general "executing
 actions with care" guidance) — confirm with the user before running it,
 same as the first deployment.
+
+## Full task workflow: test → commit → push → deploy
+
+When a task explicitly asks to test, commit, push, and/or deploy the
+change (not just implement it), do these in order — don't stop after
+implementing and call it done:
+
+1. **Test.** Cheap/fast self-check only, scoped to what changed:
+   - Backend touched → `python3 -m pytest` (at least the relevant file).
+   - Frontend touched → `npx oxlint .`.
+   - Don't spin up a dev server or build a throwaway Playwright harness to
+     self-verify UI/visual changes unless the task specifically calls for
+     that check (see Commands, above) — this project's default is to hand
+     visual verification to the user.
+2. **Commit.** Stage only the files relevant to the change (not a blanket
+   `git add -A`), write a commit message explaining why. Follow the
+   general git safety rules (new commit, not `--amend`; no `--no-verify`).
+3. **Push.** `git push` to `origin main` — this repo pushes straight to
+   main, no PR/branch flow, no CI to gate it (see Source control, below).
+4. **Deploy**, matching what actually changed, only after commit+push so
+   the deployed artifact matches what's in git:
+   - Frontend-only change → `./frontend/deploy.sh` (build, S3 sync,
+     CloudFront invalidation).
+   - Backend/infra change → `./backend/build_lambda.sh` (if backend
+     changed) then `terraform -chdir=terraform apply` — **apply still
+     needs explicit user confirmation first**, per the Deployment section
+     above; this workflow authorizes running the *sequence*, not skipping
+     that specific confirmation.
+   - Remember `AWS_PROFILE=debian` (or whatever profile currently has
+     working credentials — see Deployment, above) for both.
+5. Report the live URL/result back so the user can verify online, rather
+   than assuming the task is done once `apply`/`deploy.sh` exits 0.
+
+This whole sequence is manual because there's no CI/CD pipeline yet
+(tracked as an open item in `TASKS.md`, Phase 7). Once that exists, "push"
+will likely trigger test+deploy automatically and this checklist should
+shrink accordingly — don't keep hand-running steps CI already covers once
+it's live.
+
+## Source control
+
+Version-controlled and pushed to GitHub: https://github.com/l4rma/flashcards
+(private repo, `main` branch, no CI configured — see "no CI/CD pipeline
+yet" above). Local repo root was renamed from `flash-cards` to
+`flashcards` for naming consistency — AWS resources were deliberately
+**not** renamed to match (still `flash-cards-*`: S3 buckets, Cognito
+domain, Lambda function, IAM roles), since renaming those forces
+recreating uniquely-named resources for no functional benefit. Don't
+"fix" that mismatch — it's intentional.
 
 ## Architecture
 
@@ -179,6 +237,13 @@ same as the first deployment.
   `index.css`, no `tailwind.config.js`). No router — `App.jsx` does manual
   tab-state switching between pages. No component library; styling follows
   the palette/shape/type rules in `DESIGN.md`.
+- **Light/dark theme** is a single `html.dark { --color-*: ...; }` override
+  block in `index.css` (`theme.js` toggles the class, preference persisted
+  in `localStorage`) — since every color already flows through named
+  theme tokens, this needed zero `dark:` variants or per-component color
+  logic. See `DESIGN.md`'s "Dark theme" section for the palette and why
+  this override approach works against Tailwind v4's layered `@theme`
+  output.
 - Full design rationale for the AWS migration (cost comparisons, schema
   design reasoning, why Lambda+DynamoDB over ECS+RDS or plain EC2) lives in
   `SPEC.md`'s Tech stack / Open decisions sections — this file

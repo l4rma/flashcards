@@ -10,6 +10,24 @@ function tiltFor(id) {
   return ((hash % 100) / 100) * 1.2 - 0.6; // -0.6deg .. 0.6deg
 }
 
+function normalize(word) {
+  return word.trim().toLowerCase();
+}
+
+// How long to wait after the user stops typing before checking for a
+// duplicate — checking on every keystroke flags half-typed words that
+// happen to match while the user is still mid-edit.
+const DUPLICATE_CHECK_DELAY_MS = 500;
+
+function useDebounced(value, delayMs) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) {
   const [english, setEnglish] = useState("");
   const [french, setFrench] = useState("");
@@ -33,9 +51,34 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
     refresh();
   }, []);
 
+  function isFrontDuplicate(value) {
+    return value.trim() && cards.some((c) => normalize(c.english) === normalize(value));
+  }
+  function isBackDuplicate(value) {
+    return value.trim() && cards.some((c) => normalize(c.french) === normalize(value));
+  }
+
+  // Debounced so warnings don't flicker on while the user is still typing —
+  // only shown once they pause. handleSubmit still checks the live
+  // (non-debounced) values below, so a fast type-then-submit is never
+  // let through just because the debounce hadn't caught up yet.
+  const debouncedEnglish = useDebounced(english, DUPLICATE_CHECK_DELAY_MS);
+  const debouncedFrench = useDebounced(french, DUPLICATE_CHECK_DELAY_MS);
+  const frontDuplicate = isFrontDuplicate(debouncedEnglish);
+  const backDuplicate = isBackDuplicate(debouncedFrench);
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!french.trim() || !english.trim()) return;
+    if (isFrontDuplicate(english) || isBackDuplicate(french)) {
+      setStatus({
+        type: "error",
+        message: isFrontDuplicate(english)
+          ? "A card with this front already exists."
+          : "A card with this back already exists.",
+      });
+      return;
+    }
     try {
       const created = await createCard(french.trim(), english.trim());
       onAchievementsUnlocked?.(created.newly_unlocked_achievements);
@@ -81,6 +124,11 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
               placeholder="hello"
               className="rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-ink font-display font-medium text-lg outline-none focus:ring-2 focus:ring-primary"
             />
+            {frontDuplicate && (
+              <span className="text-xs font-semibold text-wrong-dark">
+                A card with this front already exists.
+              </span>
+            )}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Back</span>
@@ -90,10 +138,16 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
               placeholder="bonjour"
               className="rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-ink font-display font-medium text-lg outline-none focus:ring-2 focus:ring-primary"
             />
+            {backDuplicate && (
+              <span className="text-xs font-semibold text-wrong-dark">
+                A card with this back already exists.
+              </span>
+            )}
           </label>
           <button
             type="submit"
-            className="mt-2 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-3"
+            disabled={frontDuplicate || backDuplicate}
+            className="mt-2 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary"
           >
             Add card
           </button>

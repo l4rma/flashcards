@@ -1,5 +1,8 @@
 # Flash Cards
 
+Live at https://d3kfmju6qasf0s.cloudfront.net. Source at
+https://github.com/l4rma/flashcards (private).
+
 See `SPEC.md` for design, `TASKS.md` for the phased build plan, `DESIGN.md`
 for the visual style brief.
 
@@ -10,8 +13,10 @@ Gateway, DynamoDB for storage, Cognito for login, S3 + CloudFront for the
 frontend, all provisioned with Terraform. There is no local dev server or
 Docker setup — that was a deliberate decision, not an oversight (see
 `CLAUDE.md`'s "Deployment target" note and `SPEC.md`'s Tech stack /
-Open decisions #9 for why). Iteration happens by deploying via CI/CD and
-testing against the real AWS environment.
+Open decisions #9 for why). Iteration happens by deploying manually
+against the real AWS environment ("testing in prod" — see `CLAUDE.md`'s
+Deployment section for the exact commands); there's no CI/CD pipeline yet
+(tracked in `TASKS.md`).
 
 ## Running tests
 
@@ -33,4 +38,7 @@ no network access, no real infrastructure needed.
   JWT authorizer already verified), `models.py` (plain dataclasses, no
   ORM), `database.py` (the `Store` DynamoDB client wrapper).
 - `frontend/` — React + Vite + Tailwind, built as a static bundle for S3.
-- `terraform/` — not yet authored (see `TASKS.md` Phase 7).
+- `terraform/` — flat root module provisioning all of the above (DynamoDB,
+  Lambda, API Gateway, Cognito, S3/CloudFront) + `terraform/bootstrap/`
+  (one-time remote-state setup). See `CLAUDE.md`'s Deployment section for
+  the apply commands.

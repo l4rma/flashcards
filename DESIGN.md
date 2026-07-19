@@ -2,9 +2,10 @@
 
 Visual direction for the frontend: calm, friendly, encouraging — a
 Duolingo/chess.com feel, not clinical or corporate. Redesigned mid-2026
-(bottom nav + type pairing + "index card" motif) keeping this same mood
-but executing it with more intention — see each section below for what
-changed and why.
+(bottom nav + type pairing + "index card" motif), then followed shortly
+after by a togglable dark theme and a custom coin icon — keeping this
+same mood throughout but executing it with more intention — see each
+section below for what changed and why.
 
 ## Signature element: the index card
 
@@ -140,10 +141,14 @@ small plain text — it's real content now (today's numbers), not a caption.
   four lines of plain text in a paragraph — the single biggest layout fix
   from the original version, which put nearly everything in a stack of
   identical white boxes with no hierarchy between them.
-- Admin page consolidated from three separate elevated cards down to two
-  (settings grouped together, danger zone kept visually separate via a
-  coral-tinted surface) — three cards for four short buttons read as
-  noise, not hierarchy.
+- Admin page originally consolidated from three separate elevated cards
+  down to two (settings grouped together, danger zone kept visually
+  separate via a coral-tinted surface) — three cards for four short
+  buttons read as noise, not hierarchy. Back up to three since the theme
+  toggle was added as its own "Appearance" card above settings — a
+  deliberate exception, since a toggle is a different kind of control than
+  a row of buttons and reads better with its own space, not folded into
+  the settings card.
 
 ## Interaction
 
@@ -161,6 +166,10 @@ small plain text — it's real content now (today's numbers), not a caption.
 - **Tailwind CSS** with a small custom theme (colors, border radius, two
   font families) — fastest way to get this exact look without fighting a
   heavier component library's default style. No icon library or UI
-  component library introduced by the redesign — emoji badges and plain
-  Tailwind utility classes stay the whole toolset, matching the original
-  brief's reasoning.
+  component library — emoji badges and plain Tailwind utility classes are
+  still most of the toolset, matching the original brief's reasoning. The
+  one exception: a couple of small hand-drawn inline SVGs (`CoinIcon`,
+  `ThemeIcon`) where cross-platform emoji rendering was a real problem
+  (different OS emoji fonts drew 🪙 as gold vs. flat silver) rather than
+  a stylistic choice — not the start of an icon library, just a targeted
+  fix where emoji genuinely couldn't do the job.

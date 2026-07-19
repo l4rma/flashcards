@@ -365,9 +365,10 @@ design these tasks implement.
 ## Phase 6 — Local network access (Docker) — RETIRED
 
 Superseded by the AWS migration (Phase 7): the user decided local dev and
-Docker no longer need to work at all ("testing in prod" — CI/CD deploys to
-the real AWS environment, which is the only environment tested against
-going forward). `docker-compose.yml`, `backend/Dockerfile`,
+Docker no longer need to work at all ("testing in prod" — deploys go
+straight to the real AWS environment, which is the only environment
+tested against going forward; no CI/CD pipeline yet, deploys are manual,
+see Phase 7). `docker-compose.yml`, `backend/Dockerfile`,
 `frontend/Dockerfile`, and `frontend/nginx.conf` were deleted. Kept below
 as a historical record of real problems solved (the nginx/Docker DNS saga
 in particular took three failed attempts) — don't reintroduce Docker for
@@ -475,8 +476,9 @@ exists anymore (Phase 6, above) — this is the only environment.
       attaches (`request.scope["aws.event"]...`) — does no cryptographic
       verification itself, that already happened in API Gateway.
 - [x] `app/main.py` — every route takes `user_id` from
-      `Depends(get_current_user_id)`, threads it through; `handler = Mangum(app)`
-      added.
+      `Depends(get_current_user_id)`, threads it through; `handler =
+      Mangum(app)` added (later gained `api_gateway_base_path="/api"` —
+      see the CloudFront/API Gateway bug fixes further down).
 - [x] `requirements.txt`: dropped `sqlalchemy`/`uvicorn`, added `mangum`,
       `boto3`, `moto[dynamodb]` (test-only).
 - [x] Tests rewritten against **moto-mocked DynamoDB**
@@ -496,7 +498,8 @@ exists anymore (Phase 6, above) — this is the only environment.
       (`use_lockfile = true`, set in `versions.tf`'s backend block) as of
       Terraform 1.11+, replacing the older S3+DynamoDB pairing. `terraform
       plan` verified clean against the real AWS account for both this and
-      the main config (not yet applied — see Deployment below).
+      the main config before either was applied (see Deployment below —
+      both have since been applied and are live).
 - [x] `terraform/dynamodb.tf` — 4 tables (`Cards` + `due-index` GSI,
       `Stats`, `Achievements`, `QuestCompletions`), On-Demand billing.
 - [x] `terraform/lambda.tf` — function (zip-packaged), least-privilege IAM
@@ -576,9 +579,19 @@ exists anymore (Phase 6, above) — this is the only environment.
       confirmed manually via the Hosted UI: two accounts, independent
       cards/coins/achievements each, no cross-user leakage on the real
       deployed stack.
+- [x] **Version control**: `git init`, audited for secrets (none found —
+      `.gitignore` already covered `.env`/`backend.hcl`/`.tfstate`/
+      `.terraform/`/`lambda.zip`; one gap fixed, `terraform/bootstrap/` had
+      no `.gitignore` of its own), pushed to a new private GitHub repo
+      (`gh repo create flashcards --private --source=. --remote=origin
+      --push`) at https://github.com/l4rma/flashcards. Local repo root
+      later renamed `flash-cards` → `flashcards` to match (AWS resource
+      names deliberately left as `flash-cards-*`, see `CLAUDE.md`'s Source
+      control section).
 - [ ] CI/CD (GitHub Actions or similar) to automate the above on push —
-      mentioned as a goal but not yet scoped/built; natural next step once
-      the first manual deployment is verified working.
+      mentioned as a goal but not yet scoped/built; natural next step now
+      that the repo exists on GitHub and the first manual deployment is
+      verified working.
 - [ ] **Style the Cognito Hosted UI to match the app's look** (currently
       default AWS styling — user noticed and asked). Confirmed feasible,
       two options, not yet decided/started:
@@ -597,6 +610,15 @@ exists anymore (Phase 6, above) — this is the only environment.
          Older mechanism, more fiddly/limited (can only re-skin existing
          elements, no layout changes), but doesn't touch the domain's UI
          version.
+
+### Post-launch polish
+- [x] **Duplicate-card prevention on the Deck page's add form.**
+      Frontend-only, same-field (front-vs-front, back-vs-back),
+      case-insensitive, debounced ~500ms so warnings don't flicker while
+      typing — inline warning under the matching field, Add button
+      disabled, `handleSubmit` re-checks the live (non-debounced) values
+      as a backstop. No backend change — see `SPEC.md`'s Open decisions
+      #10 for why this is deliberately frontend-only and not cross-field.
 
 ## Phase 8 — Future AI features (backlog, not started)
 - [ ] Pronunciation audio: research TTS options, add `audio_url` (or
