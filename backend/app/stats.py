@@ -56,6 +56,12 @@ def _stats_to_item(stats: Stats) -> dict:
         "lootbox_bronze": stats.lootbox_bronze,
         "lootbox_silver": stats.lootbox_silver,
         "lootbox_gold": stats.lootbox_gold,
+        "lootboxes_opened": stats.lootboxes_opened,
+        "used_label": stats.used_label,
+        "practiced_prebuilt_deck": stats.practiced_prebuilt_deck,
+        "practiced_own_full_deck": stats.practiced_own_full_deck,
+        "practiced_sub_deck": stats.practiced_sub_deck,
+        "practice_sessions_completed": stats.practice_sessions_completed,
     }
 
 
@@ -99,6 +105,12 @@ def _item_to_stats(item: dict) -> Stats:
         lootbox_bronze=int(item.get("lootbox_bronze", 0)),
         lootbox_silver=int(item.get("lootbox_silver", 0)),
         lootbox_gold=int(item.get("lootbox_gold", 0)),
+        lootboxes_opened=int(item.get("lootboxes_opened", 0)),
+        used_label=bool(item.get("used_label", False)),
+        practiced_prebuilt_deck=bool(item.get("practiced_prebuilt_deck", False)),
+        practiced_own_full_deck=bool(item.get("practiced_own_full_deck", False)),
+        practiced_sub_deck=bool(item.get("practiced_sub_deck", False)),
+        practice_sessions_completed=int(item.get("practice_sessions_completed", 0)),
     )
 
 
@@ -240,4 +252,10 @@ def reset_all_stats(stats: Stats) -> Stats:
     stats.lootbox_bronze = 0
     stats.lootbox_silver = 0
     stats.lootbox_gold = 0
+    stats.lootboxes_opened = 0
+    stats.used_label = False
+    stats.practiced_prebuilt_deck = False
+    stats.practiced_own_full_deck = False
+    stats.practiced_sub_deck = False
+    stats.practice_sessions_completed = 0
     return stats

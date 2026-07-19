@@ -149,6 +149,11 @@ verified Cognito JWT), never a request parameter.
   decks, above. No auth-scoped data involved (no `Cards` table
   read/write), but still behind the same JWT authorizer as every other
   route.
+- `POST /practice/completed` — body `{ source: "own_deck" | "sub_deck" |
+  "prebuilt" }`, called once by `PracticeSession.jsx` when a full Extra
+  Training pass finishes. The *only* backend signal a practice round ever
+  produces — see the Extra Training achievements note under Achievements,
+  above, for why this exists without reintroducing per-grade credit.
 
 Session queue logic (ordering, requeueing) lives in the **frontend**, not the
 backend — the backend only tracks each card's persistent schedule state. This
@@ -218,8 +223,13 @@ chosen queue, once — **no requeue on Wrong**, unlike the real Train loop
 (per explicit request: "going through that one deck, once"). Reuses the
 same `FlipCard` component and Wrong/Correct button styling as Train, but:
 - Grading only updates local `correct`/`wrong` counters — **no API call
-  at all**, since nothing here is meant to persist (see Open decisions
-  #14: no `Card` mutation, no coins/xp/streak/quest/achievement credit).
+  per grade**, since nothing here is meant to persist (see Open decisions
+  #14: no `Card` mutation, no coins/xp/streak/quest credit). Finishing a
+  full pass **does** make one call, `POST /practice/completed`, purely to
+  back the practice-related achievements (Field Trip/Full Circle/
+  Specialist/the practice-count family) — see Achievements, above, for
+  why a one-time achievement reward on completion doesn't contradict "no
+  credit for grading during practice."
 - A fixed ✕ button (top-right, floating pill, same visual language as the
   nav bar's floating pills) exits the session at any point, straight back
   to Train's normal view — you don't have to finish the deck.
@@ -442,8 +452,10 @@ by families — it still checks and can unlock every tier independently
 (e.g. a big stat jump could unlock two tiers in the same event); the
 two-tiles-max collapsing only happens at read-time in `list_achievements`.
 
-Starting list (53 achievement tiers across 10 families/standalones — easy
-to extend, just add an `AchievementDef` with the right `family`):
+List (66 achievement tiers across 26 families/standalones — easy to
+extend, just add an `AchievementDef` with the right `family`; started at
+53/10 before achievements for leveling/Collection/Deck 2.0/Extra Training
+were added):
 
 | Badge | Title | Target |
 |---|---|---|
@@ -471,6 +483,49 @@ to extend, just add an `AchievementDef` with the right `family`):
 | 🎯 | Hat Trick → Perfection | `longest_correct_streak` (answers in a row, resets on Wrong): 3/5/10/25/50/100 |
 | 🎓 | Word Master → Master Linguist | `cards_mastered` (cards that crossed the 64-day interval): 1/5/10/25/50 |
 | 🏃 | Quarter Marathon → Iron Learner | `largest_session_completed` (biggest queue ever cleared in one sitting): 25/50/100/200 |
+| 🙂 | Make It Yours | Set a username *and* pick an avatar |
+| ⭐ | Rising Star → Living Legend | `level`: 5/10/25/50 |
+| 🎁 | Chest Cracker → Vault Keeper | `lootboxes_opened`: 1/10/50 |
+| 🏆 | Dressed to Impress | Equip a title |
+| 🎨 | New Look | Equip a card-colour theme |
+| 👑 | Title Collector | Own every title (target = current title catalog size) |
+| 🌈 | Theme Collector | Own every card-colour theme (target = current theme catalog size) |
+| 🏷️ | Organizer | Give a card its first sub-deck label |
+| 🧭 | Field Trip | Complete a full Extra Training round through a pre-built deck |
+| 🔁 | Full Circle | Complete a full Extra Training round through your entire deck in one go |
+| 🧩 | Specialist | Complete a full Extra Training round through one of your sub-decks |
+| 📖 | Practice Makes Perfect → Practice Master | `practice_sessions_completed` (any Extra Training source): 5/25/100 |
+
+**Extra Training achievements need a signal the practice loop otherwise
+never sends** — grading during practice makes no API call at all (see
+Extra Training, above), so `PracticeSession.jsx` makes exactly one call,
+`POST /practice/completed`, when a full linear pass finishes (not on
+early exit via ✕), just to flip the right one-time flag
+(`practiced_prebuilt_deck`/`practiced_own_full_deck`/`practiced_sub_deck`)
+and increment `practice_sessions_completed`. This doesn't reintroduce
+per-grade credit — an achievement's own coin reward on unlock is a
+one-time milestone payout, the same as "First Card" rewards creating your
+first card without meaning every card add earns a bonus.
+
+**`Stats.level` needed a genuinely new "which achievement condition can
+read it" ordering fix**, not just new achievement rows. Every route that
+can move xp used to call `leveling.finalize_level` *once*, after the
+achievement/quest check — meaning an action that both crossed a level
+threshold and satisfied a level-based achievement (or, after this phase,
+an achievement/quest reward that itself crossed a level threshold) would
+miss that unlock until the *next* action, since achievements were
+evaluating a stale `stats.level`. Fixed by calling `_finalize_level`
+**twice** per request (see `app/main.py`'s docstring on it): once right
+after the routine mutation (so achievement conditions see the current
+level), once again after achievements/quests are checked (to catch a
+level-up triggered by *their* reward xp). `finalize_level` is a safe
+no-op when xp hasn't crossed a new threshold, so calling it twice costs
+nothing when nothing changed. Caught by
+`test_level_achievement_unlocks_at_level_5` actually failing during
+development — a good example of a new achievement condition surfacing a
+latent ordering bug that plain coin/xp counters never would have (they
+don't have a second "achievement reads this same value" consumer the way
+`level` now does).
 
 ### Daily quests
 
@@ -1060,14 +1115,20 @@ these you'd like changed:
     with no requeue-on-Wrong either.** Grading a card there never touches
     `interval_days`/`due_date`/`times_correct`/`times_wrong` — consistent
     with pre-built-deck words having no `Card` row at all to mutate in
-    the first place — and earns no coins/streak/quest/achievement credit;
-    a practice round's only feedback is a client-side summary that never
-    reaches the backend, no API call at all on each grade. Also
+    the first place — and earns no coins/streak/quest credit; a practice
+    round's per-grade feedback is a client-side tally that never reaches
+    the backend, no API call on each grade. **Updated**: achievements are
+    the one exception, added in a later pass — finishing a full practice
+    round makes exactly one `POST /practice/completed` call, purely to
+    back a handful of practice-specific achievements (Field Trip/Full
+    Circle/Specialist/the practice-count family); this is a one-time
+    milestone reward on completion, not per-grade credit, so it doesn't
+    contradict the original decision (see Achievements, above). Also
     confirmed: a single linear pass through the queue ("going through
     that one deck, once"), not the real Train loop's requeue-Wrong-to-
     the-back behavior — grading Wrong in practice just moves on, tallied
     for the end summary, never seen again that round. See `TASKS.md`
-    Phase 14.
+    Phase 14 and the achievements-follow-up entry below.
 15. **Leveling's XP curve, coin bonus, and reset policy** — three
     assumed numbers/decisions, flag any if you want them changed:
     `LEVEL_XP_STEP = 100` (level *N* needs cumulative `100*(N-1)*N/2`
@@ -1097,3 +1158,21 @@ these you'd like changed:
     actually wanted per-card tagging instead — that's a materially
     different feature (closer to Phase 13's per-card labels than a
     theme).
+18. **13 new achievement tiers added for practice/leveling/collection/
+    profile/labels, plus a real ordering fix they surfaced.** Full list
+    under Achievements, above. Two judgment calls worth flagging: (a) the
+    three practice achievements (Field Trip/Full Circle/Specialist)
+    require *completing* a full pass, not just starting one — "testing a
+    prebuilt deck" could arguably mean just trying it, but completion is
+    the only clean signal point given practice makes no other backend
+    call; (b) `used_label` only tracks labeling a card **at creation**,
+    not adding one later via edit, since `PATCH /cards/{id}` has no
+    stats/achievement wiring at all today (matches the existing
+    deck-size-achievements precedent of only counting `POST /cards`, not
+    edits). The real bug: achievement conditions reading `stats.level`
+    were being evaluated *before* that request's own level-up was
+    finalized, since `leveling.finalize_level` used to run once, after
+    the achievement check. Fixed by calling it twice per request (see
+    Achievements, above, and `app/main.py`'s `_finalize_level`
+    docstring) — caught by a genuinely failing test during development,
+    not discovered after deploy.

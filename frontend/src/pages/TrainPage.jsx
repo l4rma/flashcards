@@ -43,8 +43,8 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
     });
   }, []);
 
-  function startPractice(practiceQueue, title) {
-    setPractice({ queue: practiceQueue, title });
+  function startPractice(practiceQueue, title, source) {
+    setPractice({ queue: practiceQueue, title, source });
     setMode("practice");
   }
 
@@ -58,7 +58,16 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
   }
 
   if (mode === "practice" && practice) {
-    return <PracticeSession queue={practice.queue} title={practice.title} onExit={exitPractice} />;
+    return (
+      <PracticeSession
+        queue={practice.queue}
+        title={practice.title}
+        source={practice.source}
+        onExit={exitPractice}
+        onAchievementsUnlocked={onAchievementsUnlocked}
+        onLeveledUp={onLeveledUp}
+      />
+    );
   }
 
   if (queue === null) {

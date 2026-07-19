@@ -27,6 +27,9 @@ from app.schemas import (
     LevelUpNotice,
     LootboxOpenResult,
     LootboxTier,
+    PracticeCompletedRequest,
+    PracticeCompletedResult,
+    PracticeSource,
     PrebuiltDeckOut,
     PrebuiltDeckSummary,
     ProfileUpdate,
@@ -57,10 +60,25 @@ def _quest_notices(keys: list[str]) -> list[QuestCompletionNotice]:
 
 
 def _finalize_level(store: Store, user_id: str, stats) -> list[LevelUpNotice]:
-    """Call after every other stats-mutating step in a request (achievement/
-    quest checks included, since their reward transactions also add xp) —
-    see leveling.finalize_level for why this is a separate, simple step
-    rather than folded into those transactions."""
+    """Called **twice** per request, around the achievement/quest checks
+    (see leveling.finalize_level for why this is a separate, simple step
+    rather than folded into those transactions):
+
+    1. Right after the routine stats mutation (a grade, a session-complete
+       bonus, a lootbox reward) — so achievement conditions that read
+       `stats.level` (the "level" family) see the *current* level, not a
+       stale one from before this request. Without this first call, a
+       grade that both crosses a level threshold *and* satisfies a
+       level-based achievement would miss that achievement until the next
+       action, since achievements were being checked before level caught
+       up.
+    2. Again after achievements/quests are checked — their reward
+       transactions also add xp (mirrored 1:1 with coins), which can
+       itself cross a level threshold that the first call couldn't have
+       seen yet.
+
+    Safe to call twice: a no-op (returns []) whenever xp hasn't crossed a
+    new threshold since the last call. Callers concatenate both results."""
     levels_gained = leveling_mod.finalize_level(store, user_id, stats)
     if levels_gained <= 0:
         return []
@@ -90,11 +108,14 @@ def create_card(
     stats_mod.sync_day(store, user_id, stats, today)
     stats_mod.record_card_added(stats)
     quests_mod.record_quest_card_added(stats)
+    if payload.label is not None:
+        stats.used_label = True
     stats_mod.save_stats(store, stats)
 
+    newly_leveled_up = _finalize_level(store, user_id, stats)
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_completed_quests = quests_mod.check_and_complete_quests(store, user_id, stats, today)
-    newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
 
     result = CardOut.model_validate(card)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
@@ -165,9 +186,10 @@ def grade_card(
         stats_mod.record_card_mastered(stats)
     stats_mod.save_stats(store, stats)
 
+    newly_leveled_up = _finalize_level(store, user_id, stats)
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_completed_quests = quests_mod.check_and_complete_quests(store, user_id, stats, today)
-    newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
 
     result = CardOut.model_validate(card)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
@@ -207,8 +229,9 @@ def session_complete(store: Store = Depends(get_store), user_id: str = Depends(g
     stats_mod.award_session_complete(stats)
     stats_mod.save_stats(store, stats)
 
-    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
 
     result = StatsOut.model_validate(stats)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
@@ -289,8 +312,9 @@ def open_lootbox(
 
     # A coin/xp reward can cross an achievement or level threshold, same
     # as any other coin/xp-earning action in this app.
-    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
 
     return LootboxOpenResult(
         **reward,
@@ -321,6 +345,39 @@ def read_prebuilt_deck(key: str):
         key=deck.key,
         title=deck.title,
         cards=[{"english": c.english, "french": c.french} for c in deck.cards],
+    )
+
+
+@app.post("/practice/completed", response_model=PracticeCompletedResult)
+def practice_completed(
+    payload: PracticeCompletedRequest,
+    store: Store = Depends(get_store),
+    user_id: str = Depends(get_current_user_id),
+):
+    """The only signal the backend ever gets that an Extra Training round
+    happened — PracticeSession.jsx calls this once, when a full linear
+    pass through the queue finishes (not on early exit via the ✕). Backs
+    the practice-related achievements only; grading itself during
+    practice still earns no coins/xp (see SPEC.md's Extra Training
+    section) — an achievement's own one-time reward on unlock is a
+    separate thing, same as every other achievement in this app."""
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    stats.practice_sessions_completed += 1
+    if payload.source == PracticeSource.prebuilt:
+        stats.practiced_prebuilt_deck = True
+    elif payload.source == PracticeSource.own_deck:
+        stats.practiced_own_full_deck = True
+    elif payload.source == PracticeSource.sub_deck:
+        stats.practiced_sub_deck = True
+    stats_mod.save_stats(store, stats)
+
+    newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
+
+    return PracticeCompletedResult(
+        newly_unlocked_achievements=_unlock_notices(newly_unlocked),
+        newly_leveled_up=newly_leveled_up,
     )
 
 

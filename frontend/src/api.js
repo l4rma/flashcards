@@ -113,6 +113,13 @@ export function getPrebuiltDecks() {
   return request("/prebuilt-decks");
 }
 
+export function completePractice(source) {
+  return request("/practice/completed", {
+    method: "POST",
+    body: JSON.stringify({ source }),
+  });
+}
+
 export function getPrebuiltDeck(key) {
   return request(`/prebuilt-decks/${key}`);
 }

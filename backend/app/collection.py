@@ -162,6 +162,7 @@ def open_lootbox(stats: Stats, tier: str) -> dict:
     if _get_lootbox_count(stats, tier) <= 0:
         raise HTTPException(status_code=400, detail="No lootboxes of this tier to open")
     _set_lootbox_count(stats, tier, _get_lootbox_count(stats, tier) - 1)
+    stats.lootboxes_opened += 1
     return roll_lootbox_reward(stats, tier)
 
 

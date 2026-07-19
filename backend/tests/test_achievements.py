@@ -43,7 +43,13 @@ def test_all_achievements_locked_with_no_activity(store):
     assert len(achievements) == _expected_collapsed_count()
     assert all(not a["unlocked"] for a in achievements)
     assert all(a["unlocked_at"] is None for a in achievements)
-    assert all(a["progress_current"] == 0 for a in achievements)
+    # Every stat this app tracks starts at a real zero — except `level`,
+    # which by design starts at 1 (see models.py's Stats.level default),
+    # since "level 0" isn't a meaningful state the way "0 correct answers"
+    # or "0 coins" is. The "level" family's first tile is the one
+    # legitimate exception to "no activity means zero progress everywhere".
+    assert all(a["progress_current"] == 0 for a in achievements if a["key"] != "level_5")
+    assert next(a for a in achievements if a["key"] == "level_5")["progress_current"] == 1
     assert all(a["history"] == [] for a in achievements)
 
 

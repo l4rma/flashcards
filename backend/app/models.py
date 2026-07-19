@@ -63,9 +63,15 @@ class Stats:
     # due-count.
     session_date: date | None = None
     session_initial_due: int = 0
-    # Lifetime records for achievements — deliberately NOT reset by any
-    # admin reset action, so achievements stay earned even after resetting
-    # the spendable `coins` balance.
+    # Lifetime records backing achievement conditions. NOTE: despite the
+    # name, these ARE reset by "reset all progress" (reset_all_stats) —
+    # this comment used to say otherwise, describing the *original*
+    # design, before that was reversed (see SPEC.md Open decisions #5):
+    # leaving them alone let achievements re-unlock the instant any new
+    # activity happened post-reset, since the numbers they check never
+    # actually went back down. Left un-renamed ("lifetime") because
+    # that's still an accurate description of what they measure *within*
+    # one reset epoch, not a claim that they survive a reset.
     lifetime_coins_earned: int = 0
     sessions_completed: int = 0
     current_correct_streak: int = 0
@@ -112,3 +118,19 @@ class Stats:
     lootbox_bronze: int = 0
     lootbox_silver: int = 0
     lootbox_gold: int = 0
+    # Lifetime lootbox-opens — for the "lootboxes" achievement family.
+    # Incremented in collection.open_lootbox.
+    lootboxes_opened: int = 0
+    # Set the first time a card is created with a non-blank label — for
+    # the "Organizer" achievement. Only tracked at creation time (not on
+    # a later edit that adds a label), same as every deck-size achievement
+    # only counting POST /cards, not edits.
+    used_label: bool = False
+    # One-time flags + a lifetime counter for the Extra Training
+    # achievements (app/main.py's POST /practice/completed) — practice
+    # sessions make no other backend call, so these are the only signal
+    # the backend ever gets that a practice round happened.
+    practiced_prebuilt_deck: bool = False
+    practiced_own_full_deck: bool = False
+    practiced_sub_deck: bool = False
+    practice_sessions_completed: int = 0

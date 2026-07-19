@@ -4,6 +4,7 @@ from typing import Callable
 
 from boto3.dynamodb.conditions import Key
 
+from app import collection as collection_mod
 from app.database import ACHIEVEMENTS_TABLE, STATS_TABLE, Store, serialize_item
 from app.models import Stats
 
@@ -225,6 +226,87 @@ ACHIEVEMENTS: list[AchievementDef] = [
     AchievementDef(
         "marathon_200", "Iron Learner", "Clear 200 due cards in one sitting.", "🏃", 200,
         lambda stats: stats.largest_session_completed, family="marathon",
+    ),
+    # --- Profile identity (Phase 9) ---
+    AchievementDef(
+        "profile_set_up", "Make It Yours", "Set a username and pick an avatar.", "🙂", 1,
+        lambda stats: 1 if (stats.username and stats.avatar_key) else 0, coin_reward=10,
+    ),
+    # --- Leveling (Phase 10) ---
+    AchievementDef(
+        "level_5", "Rising Star", "Reach level 5.", "⭐", 5,
+        lambda stats: stats.level, family="level",
+    ),
+    AchievementDef(
+        "level_10", "Seasoned Learner", "Reach level 10.", "⭐", 10,
+        lambda stats: stats.level, family="level",
+    ),
+    AchievementDef(
+        "level_25", "Veteran", "Reach level 25.", "⭐", 25,
+        lambda stats: stats.level, family="level",
+    ),
+    AchievementDef(
+        "level_50", "Living Legend", "Reach level 50.", "⭐", 50,
+        lambda stats: stats.level, family="level",
+    ),
+    # --- Collection: lootboxes, titles, themes (Phase 11) ---
+    AchievementDef(
+        "lootbox_1", "Chest Cracker", "Open your first lootbox.", "🎁", 1,
+        lambda stats: stats.lootboxes_opened, family="lootboxes",
+    ),
+    AchievementDef(
+        "lootbox_10", "Treasure Hunter", "Open 10 lootboxes.", "🎁", 10,
+        lambda stats: stats.lootboxes_opened, family="lootboxes",
+    ),
+    AchievementDef(
+        "lootbox_50", "Vault Keeper", "Open 50 lootboxes.", "🎁", 50,
+        lambda stats: stats.lootboxes_opened, family="lootboxes",
+    ),
+    AchievementDef(
+        "equipped_title", "Dressed to Impress", "Equip a title.", "🏆", 1,
+        lambda stats: 1 if stats.equipped_title else 0, coin_reward=10,
+    ),
+    AchievementDef(
+        "equipped_theme", "New Look", "Equip a card-colour theme.", "🎨", 1,
+        lambda stats: 1 if stats.equipped_theme else 0, coin_reward=10,
+    ),
+    AchievementDef(
+        "title_collector", "Title Collector", "Own every title.", "👑", len(collection_mod.TITLES),
+        lambda stats: len(stats.owned_titles), coin_reward=100,
+    ),
+    AchievementDef(
+        "theme_collector", "Theme Collector", "Own every card-colour theme.", "🌈",
+        len(collection_mod.THEMES), lambda stats: len(stats.owned_themes), coin_reward=100,
+    ),
+    # --- Deck 2.0: sub-decks (Phase 13) ---
+    AchievementDef(
+        "used_label", "Organizer", "Give a card its first sub-deck label.", "🏷️", 1,
+        lambda stats: 1 if stats.used_label else 0, coin_reward=15,
+    ),
+    # --- Extra Training (Phase 14) ---
+    AchievementDef(
+        "practiced_prebuilt", "Field Trip", "Complete a full practice round through a pre-built deck.",
+        "🧭", 1, lambda stats: 1 if stats.practiced_prebuilt_deck else 0, coin_reward=15,
+    ),
+    AchievementDef(
+        "practiced_own_deck", "Full Circle", "Complete a practice round through your entire deck in one go.",
+        "🔁", 1, lambda stats: 1 if stats.practiced_own_full_deck else 0, coin_reward=20,
+    ),
+    AchievementDef(
+        "practiced_sub_deck", "Specialist", "Complete a practice round through one of your sub-decks.",
+        "🧩", 1, lambda stats: 1 if stats.practiced_sub_deck else 0, coin_reward=15,
+    ),
+    AchievementDef(
+        "practice_5", "Practice Makes Perfect", "Complete 5 practice rounds.", "📖", 5,
+        lambda stats: stats.practice_sessions_completed, family="practice",
+    ),
+    AchievementDef(
+        "practice_25", "Dedicated Practicer", "Complete 25 practice rounds.", "📖", 25,
+        lambda stats: stats.practice_sessions_completed, family="practice",
+    ),
+    AchievementDef(
+        "practice_100", "Practice Master", "Complete 100 practice rounds.", "📖", 100,
+        lambda stats: stats.practice_sessions_completed, family="practice",
     ),
 ]
 

@@ -31,7 +31,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
     setPendingKey(deck.key);
     try {
       const full = await getPrebuiltDeck(deck.key);
-      onStart(toQueue(full.cards), full.title);
+      onStart(toQueue(full.cards), full.title, "prebuilt");
     } finally {
       setPendingKey(null);
     }
@@ -63,7 +63,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
             <button
               type="button"
               disabled={cards.length === 0}
-              onClick={() => onStart(toQueue(cards), "All my cards")}
+              onClick={() => onStart(toQueue(cards), "All my cards", "own_deck")}
               className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-3 disabled:opacity-40"
             >
               All my cards ({cards.length})
@@ -74,7 +74,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
                 <button
                   key={l}
                   type="button"
-                  onClick={() => onStart(toQueue(inLabel), l)}
+                  onClick={() => onStart(toQueue(inLabel), l, "sub_deck")}
                   className="rounded-full bg-primary-light hover:bg-primary/20 text-primary-dark font-bold py-3 transition"
                 >
                   {l} ({inLabel.length})

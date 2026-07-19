@@ -908,6 +908,68 @@ No dependency on Phases 9-12.
 - [x] Frontend-only phase, no backend changes — 167 backend tests still
       passing unchanged. `npm run build` + `oxlint` clean.
 
+### Achievements for practice, leveling, collection, profile, and labels
+Requested after Phase 14 shipped — 13 new achievement tiers covering
+every feature added in Phases 9-14 that didn't already have one, plus a
+real correctness fix the new "level" achievements surfaced.
+- [x] `Stats` gains `used_label`, `practiced_prebuilt_deck`,
+      `practiced_own_full_deck`, `practiced_sub_deck`,
+      `practice_sessions_completed`, `lootboxes_opened` — all reset by
+      "Reset all progress" (gamification progress, same as everything
+      else added since Phase 10). None of these are exposed via
+      `StatsOut`/`GET /stats` (internal achievement-tracking plumbing,
+      same as `total_correct`/`comebacks`/etc. already weren't) —
+      progress is only visible through `GET /achievements`.
+- [x] New `POST /practice/completed` (`{source: "own_deck"|"sub_deck"|
+      "prebuilt"}`) — the only signal the backend gets that an Extra
+      Training round happened, called once by `PracticeSession.jsx` on a
+      full completion (not on early exit). `used_label` is set directly
+      in `POST /cards` when a label is provided at creation (edits via
+      `PATCH /cards/{id}` don't track it — that route has no
+      stats/achievement wiring at all, matching how deck-size
+      achievements also only count creation, not edits).
+- [x] 13 new `AchievementDef`s in `achievements.py`: `profile_set_up`
+      (username + avatar), a 4-tier `level` family (5/10/25/50), a
+      3-tier `lootboxes` family (1/10/50), `equipped_title`/
+      `equipped_theme`, `title_collector`/`theme_collector` (target =
+      `len(collection.TITLES)`/`len(collection.THEMES)` at import time),
+      `used_label`, `practiced_prebuilt`/`practiced_own_deck`/
+      `practiced_sub_deck`, and a 3-tier `practice` family (5/25/100).
+      66 tiers / 26 collapsed families+standalones total (was 53/10).
+- [x] **Bug fix, caught by a genuinely failing test during development**:
+      `leveling.finalize_level` used to run once per request, *after*
+      `check_and_unlock_achievements` — so an achievement condition
+      reading `stats.level` (the new "level" family) evaluated a stale
+      level from before that request's own level-up. Fixed by calling
+      `_finalize_level` **twice** per request in every route that can
+      move xp (`POST /cards`, `POST /cards/{id}/grade`,
+      `POST /stats/session-complete`, `POST /collection/lootboxes/{tier}/open`,
+      `POST /practice/completed`): once right after the routine
+      mutation (achievements then see the current level), once more
+      after achievements/quests are checked (to catch a level-up from
+      *their* reward xp). Safe to call twice — a no-op when xp hasn't
+      crossed a new threshold.
+- [x] Also fixed a stale comment in `models.py` (said
+      `lifetime_coins_earned`/`sessions_completed`/etc. are "deliberately
+      NOT reset" — described the pre-reversal design from Phase 5's
+      history, not current behavior; `reset_all_stats` has zeroed them
+      for a long time). Caught while adding the new fields nearby.
+- [x] `test_all_achievements_locked_with_no_activity` needed one
+      accommodation: `stats.level` starts at 1, not 0 (unlike every
+      other achievement-backing stat), so the "level_5" tile's
+      `progress_current` is legitimately 1 with zero activity, not 0 —
+      documented as the one exception rather than weakened generally.
+- [x] 15 new backend tests (`test_new_achievements.py`). 182 backend
+      tests total. Frontend: `completePractice(source)` in `api.js`,
+      threaded picker→TrainPage→PracticeSession (`source` prop),
+      `PracticeSession.jsx` calls it via a `useEffect` keyed on `[done,
+      source]` — deliberately not listing the `onAchievementsUnlocked`/
+      `onLeveledUp` callback props as deps (they're plain functions from
+      `App.jsx`, not memoized, so a naive exhaustive-deps fix would
+      re-fire the effect — and re-POST — on every parent re-render while
+      `done` stays true); a ref holds the latest callbacks instead.
+      `npm run build` + `oxlint` clean, zero warnings.
+
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every
 phase above (grade, flip, achievement/quest/level-up celebration,

@@ -285,3 +285,26 @@ class PrebuiltDeckOut(BaseModel):
     key: str
     title: str
     cards: list[PrebuiltCardOut]
+
+
+class PracticeSource(str, Enum):
+    own_deck = "own_deck"
+    sub_deck = "sub_deck"
+    prebuilt = "prebuilt"
+
+
+class PracticeCompletedRequest(BaseModel):
+    """POST /practice/completed body — sent once, by PracticeSession.jsx,
+    when a practice round finishes a full linear pass (not on early exit
+    via the ✕). This is the *only* signal the backend ever gets that
+    Extra Training happened at all — grading itself makes no API call
+    (see SPEC.md's Extra Training section) — so it exists purely to back
+    the practice-related achievements, not to award coins/xp for the
+    round itself."""
+
+    source: PracticeSource
+
+
+class PracticeCompletedResult(BaseModel):
+    newly_unlocked_achievements: list[AchievementUnlockNotice] = []
+    newly_leveled_up: list[LevelUpNotice] = []
