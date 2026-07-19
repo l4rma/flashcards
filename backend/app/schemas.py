@@ -12,14 +12,41 @@ class Grade(str, Enum):
     correct = "correct"
 
 
+def _blank_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
 class CardCreate(BaseModel):
     french: str
     english: str
+    label: str | None = None
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
 
 
 class CardUpdate(BaseModel):
     french: str | None = None
     english: str | None = None
+    # Omit to leave unchanged, send null to clear (same omit-vs-null
+    # convention as ProfileUpdate/EquipRequest) — unlike french/english,
+    # which are never legitimately cleared, removing a card from its
+    # sub-deck is a real action, so label needs the "was this field sent
+    # at all" distinction main.py checks via model_fields_set. A blank
+    # string is treated the same as null (clears it) — the frontend's
+    # edit form has no separate "clear" affordance, just an empty text
+    # input, so an empty string has to mean the same thing null does.
+    label: str | None = None
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
 
 
 class GradeRequest(BaseModel):
@@ -107,6 +134,7 @@ class CardOut(BaseModel):
     last_reviewed_at: datetime | None
     times_correct: int
     times_wrong: int
+    label: str | None = None
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_completed_quests: list[QuestCompletionNotice] = []
     newly_leveled_up: list[LevelUpNotice] = []
@@ -240,3 +268,20 @@ class LootboxOpenResult(BaseModel):
     amount: int | None = None
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_leveled_up: list[LevelUpNotice] = []
+
+
+class PrebuiltDeckSummary(BaseModel):
+    key: str
+    title: str
+    card_count: int
+
+
+class PrebuiltCardOut(BaseModel):
+    english: str
+    french: str
+
+
+class PrebuiltDeckOut(BaseModel):
+    key: str
+    title: str
+    cards: list[PrebuiltCardOut]

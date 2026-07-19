@@ -26,6 +26,12 @@ class Card:
     times_wrong: int = 0
     last_grade: str | None = None
     mastered: bool = False
+    # Sub-deck grouping — one label per card (not multiple tags), so "the
+    # X sub-deck" is simply "cards where label == X". Free-text, no
+    # separate labels table — the Deck page derives the distinct label
+    # list from whatever's actually in use across the already-fetched
+    # card list.
+    label: str | None = None
 
 
 @dataclass

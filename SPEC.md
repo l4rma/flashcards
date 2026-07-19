@@ -34,16 +34,62 @@ schedules when you should see each card again using spaced repetition.
 | `times_wrong`   | int | Lifetime count of Wrong grades — ditto |
 | `last_grade`    | string, nullable | Outcome of the most recent grade ("correct"/"wrong"); only used to detect "Comeback Kid", not shown in the UI |
 | `mastered`      | bool | Has this card ever crossed `scheduling.MASTERY_THRESHOLD_DAYS`? Lifetime flag for the "Word Master" achievement family |
+| `label`         | string, nullable | Free-text sub-deck grouping — **one label per card**, not multiple tags (a sub-deck is just "cards where `label == X`"). No separate labels table; the Deck page derives the distinct label list from whatever's actually in use across the already-fetched card list. Set at creation or via `PATCH /cards/{id}` (omit to leave unchanged, `null` *or a blank string* to clear — the edit form has no separate "clear" affordance, just an empty text input, so both have to mean the same thing) |
 
 `times_correct`/`times_wrong`/`mastered`/`last_grade` **are** cleared by
 Admin's "Reset all progress" action, same as `interval_days`/`due_date`/
 `last_reviewed_at` — see Open decisions for why (originally meant to
 persist as a lifetime record across resets; reversed after that caused
-confusing bugs in practice).
+confusing bugs in practice). `label` is **not** reset by that action —
+it's an organizational property of the card, not scheduling/gamification
+progress.
 
 The app is genuinely multi-tenant as of the AWS migration (Cognito login,
 each user gets their own separate deck/progress) — see Multi-tenancy /
 AWS deployment, below, and [Open decisions](#open-decisions-assumptions).
+
+### Pre-built decks
+
+Curated word lists a dev adds to the repo — **not** stored in `Cards`,
+**not** owned by any user, per Open decisions #11 (browsable/practiceable
+without ever importing into your own deck). `app/prebuilt_decks/` is a
+Python package: `__init__.py` holds the parser, and every `*.txt` file
+alongside it is one deck, parsed once at import time into an in-memory
+`DECKS` list (same "static content in code" idea as
+`achievements.py`/`quests.py`, just sourced from bundled text files
+instead of Python literals — reads more naturally as data than as
+`AchievementDef(...)`-style calls for a word list). `build_lambda.sh`
+needs no change to bundle these — it already does `cp -r app build/`,
+which picks up the new package/files automatically.
+
+**File format** (add a new deck by dropping a new `.txt` here — no code
+change needed):
+```
+# comment lines and blank lines are ignored
+<deck title>              <- first non-comment, non-blank line
+english | french          <- one card per line after that
+...
+```
+A malformed line (no `|`) is skipped rather than failing the whole deck,
+so one typo in a large hand-edited file doesn't take the rest down with
+it. The deck's `key` is the filename without `.txt` (e.g.
+`top_50_verbs.txt` → key `top_50_verbs`).
+
+Shipped with four starter decks: **Pronouns**, **Numbers, Days & Months**,
+**50 Most Common Verbs**, and **Sport**.
+
+`GET /prebuilt-decks` (list: key/title/card_count) and
+`GET /prebuilt-decks/{key}` (full word list, 404 if unknown) — both take
+**no** `user_id`/`store` dependency at all, unlike every other route in
+this app. Not a security gap: every request still passes API Gateway's
+JWT authorizer before Lambda is ever invoked (a single `$default` route
+covers every path, see `terraform/api_gateway.tf`), so these are just as
+authenticated as anything else — they just don't need per-user data,
+since the content itself isn't scoped to a user.
+
+Nothing consumes these yet on the frontend — that's Phase 14 (Training
+2.0's "Extra Training" practice mode, which reads from a pre-built deck
+the same schedule-free way it reads from your own cards).
 
 ## Scheduling algorithm
 
@@ -91,13 +137,19 @@ below. Backed by DynamoDB (see Tech stack) — every route requires
 authentication and is scoped to the calling user (`user_id` from the
 verified Cognito JWT), never a request parameter.
 
-- `POST /cards` — create a card (`french`, `english`)
+- `POST /cards` — create a card (`french`, `english`, `label?`)
 - `GET /cards` — list all cards
 - `GET /cards/due` — list cards currently due (`due_date <= today`)
-- `PATCH /cards/{id}` — edit a card's `french`/`english` text
+- `PATCH /cards/{id}` — edit a card's `french`/`english`/`label` (`label`
+  omit-vs-null like the gamification PATCH endpoints — see Pre-built
+  decks and Profile identity, below)
 - `DELETE /cards/{id}` — delete a card
 - `POST /cards/{id}/grade` — body: `{ "grade": "wrong" | "correct" }`
   — applies the scheduling algorithm above and returns the updated card
+- `GET /prebuilt-decks` / `GET /prebuilt-decks/{key}` — see Pre-built
+  decks, above. No auth-scoped data involved (no `Cards` table
+  read/write), but still behind the same JWT authorizer as every other
+  route.
 
 Session queue logic (ordering, requeueing) lives in the **frontend**, not the
 backend — the backend only tracks each card's persistent schedule state. This
@@ -124,7 +176,12 @@ Pages:
   warnings don't flicker mid-keystroke; the Add button disables and an
   inline warning appears under whichever field matched. There is
   deliberately no backend enforcement of this rule (see Open decisions) —
-  it's a UX nicety, not a data-integrity guarantee.
+  it's a UX nicety, not a data-integrity guarantee. An optional "Sub-deck"
+  field on the add-card form and each edit row sets/edits `Card.label`
+  (see Data model, above); a row of filter pills above the list ("All" +
+  one per distinct label currently in use, derived client-side from the
+  already-fetched card list — no new endpoint) filters which cards are
+  shown, and each row displays its label as a small pill when set.
 - **Train** — the core loop: show English word (front) → click to flip and
   reveal the French word (back) → grade buttons → next card. Shows
   "Session complete" when the queue is empty.

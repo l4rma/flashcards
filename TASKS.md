@@ -840,24 +840,41 @@ three.
       `npm run build` + `oxlint` clean.
 
 ## Phase 13 — Deck 2.0 (sub-decks, per-card labels, pre-built decks)
-No dependency on Phases 9-12 — could be built any time after Phase 8.
-- [ ] `Card` gains `label` (string, nullable). **Assumed** one label per
-      card (a sub-deck is "cards sharing a label"), not multiple tags per
-      card — flag if you want multi-tag instead.
-- [ ] Label editor on each Deck-list row (and optionally at card-creation
-      time); Deck page can filter/group by label — pure client-side
-      filtering over the already-fetched card list, no new endpoint.
-- [ ] Pre-built decks: a dev-authored key/value text file per deck,
-      committed to the repo (**assumed** `backend/app/prebuilt_decks/*.txt`,
-      one deck per file, simple `front<TAB>back` lines — exact format
-      pinned down when this phase starts), parsed at Lambda cold-start
-      into an in-memory list (same "static content in code" pattern as
-      achievements/quests, sourced from bundled text files instead of
-      Python literals — `build_lambda.sh` needs to include this
-      directory in the zip).
-- [ ] Read-only endpoints to list pre-built decks and fetch one's word
-      pairs — no `Cards` table involvement, per your "browse/practice
-      without owning" answer.
+No dependency on Phases 9-12.
+- [x] `Card` gains `label` (string, nullable) — one label per card, as
+      planned. `CardCreate`/`CardUpdate` both validate it the same way
+      (`_blank_to_none`: trimmed, blank string treated as `None`);
+      `CardUpdate.label` uses the omit-vs-null convention
+      (`model_fields_set`) since clearing a label is a real action, unlike
+      french/english. 8 new backend tests (`test_labels.py`).
+- [x] Deck page: optional "Sub-deck" field on the add-card form and on
+      each row's edit form; a row of filter pills above the list ("All" +
+      every distinct label currently in use, derived client-side via
+      `[...new Set(cards.map(...))]` — no new endpoint) filters the
+      visible list; each row shows its label as a small pill when set.
+- [x] Pre-built decks: `backend/app/prebuilt_decks/` is a Python package
+      (`__init__.py` = parser, one `*.txt` per deck alongside it — add a
+      file, get a deck, no code change). Format: first non-comment/blank
+      line is the title, then `english | french` per line (`|` chosen
+      over the originally-planned tab-separated format — visible and easy
+      to hand-type, unlike a literal tab character). Parsed once at
+      import time into `DECKS`. `build_lambda.sh` needed **no change** —
+      it already does `cp -r app build/`, which picks up the new
+      package/files automatically.
+- [x] Shipped four starter decks (title, card count): **Pronouns** (28),
+      **Numbers, Days & Months** (48), **50 Most Common Verbs** (50),
+      **Sport** (29) — the exact set you asked for, so you can see the
+      real shape of the feature before adding your own.
+- [x] `GET /prebuilt-decks` (list) / `GET /prebuilt-decks/{key}` (404 if
+      unknown) — no `Cards` table involvement, and deliberately no
+      `user_id`/`store` dependency at all (the only routes in the app
+      without one) since the content isn't user-scoped; still behind the
+      same JWT authorizer as everything else (single `$default` API
+      Gateway route covers every path). 6 new backend tests
+      (`test_prebuilt_decks.py`).
+- [x] 14 new backend tests total this phase, 167 backend tests passing.
+      `npm run build` + `oxlint` clean. Nothing consumes the pre-built
+      deck endpoints on the frontend yet — that's Phase 14.
 
 ## Phase 14 — Training 2.0 (Extra Training practice modes)
 Depends on Phase 13 (labels + pre-built-deck content to select from).

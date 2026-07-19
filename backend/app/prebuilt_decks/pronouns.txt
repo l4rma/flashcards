@@ -1,0 +1,32 @@
+# Pre-built deck: one word/phrase pair per line, "english | french".
+# First non-comment, non-blank line is the deck's display title.
+# Lines starting with # (like this one) are ignored.
+Pronouns
+I | je
+you (singular, informal) | tu
+he | il
+she | elle
+we | nous
+you (plural or formal) | vous
+they (masculine) | ils
+they (feminine) | elles
+it | il
+one / people (impersonal) | on
+myself | moi
+yourself | toi
+me (object) | me
+you (object) | te
+him / it (object) | le
+her / it (object) | la
+us (object) | nous
+them (object) | les
+my | mon
+your | ton
+his / her / its | son
+our | notre
+their | leur
+this / that | ce
+these / those | ces
+who | qui
+what | que
+which | quel

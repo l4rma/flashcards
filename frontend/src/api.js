@@ -34,10 +34,10 @@ export function listDueCards() {
   return request("/cards/due");
 }
 
-export function createCard(french, english) {
+export function createCard(french, english, label = null) {
   return request("/cards", {
     method: "POST",
-    body: JSON.stringify({ french, english }),
+    body: JSON.stringify({ french, english, label }),
   });
 }
 

@@ -1,0 +1,53 @@
+# Pre-built deck: one word/phrase pair per line, "english | french".
+# First non-comment, non-blank line is the deck's display title.
+50 Most Common Verbs
+to be | être
+to have | avoir
+to do / to make | faire
+to say / to tell | dire
+to be able to / can | pouvoir
+to go | aller
+to see | voir
+to know (a fact) | savoir
+to want | vouloir
+to come | venir
+to have to / must | devoir
+to take | prendre
+to find | trouver
+to give | donner
+to speak / to talk | parler
+to put / to place | mettre
+to pass / to spend (time) | passer
+to look at / to watch | regarder
+to like / to love | aimer
+to believe | croire
+to ask | demander
+to stay / to remain | rester
+to answer / to reply | répondre
+to hear | entendre
+to think | penser
+to arrive / to happen | arriver
+to enter | entrer
+to go out / to leave | sortir
+to give back / to return (something) | rendre
+to know (be familiar with) | connaître
+to seem / to appear | sembler
+to let / to leave | laisser
+to call | appeler
+to hold | tenir
+to understand | comprendre
+to wait / to wait for | attendre
+to live | vivre
+to look for / to search | chercher
+to work | travailler
+to write | écrire
+to read | lire
+to learn | apprendre
+to eat | manger
+to drink | boire
+to buy | acheter
+to sell | vendre
+to open | ouvrir
+to close | fermer
+to play | jouer
+to leave / to depart | partir

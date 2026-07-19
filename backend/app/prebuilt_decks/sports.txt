@@ -1,0 +1,32 @@
+# Pre-built deck: one word/phrase pair per line, "english | french".
+# First non-comment, non-blank line is the deck's display title.
+Sport
+sport | le sport
+football / soccer | le football
+basketball | le basketball
+tennis | le tennis
+swimming | la natation
+running | la course
+cycling | le cyclisme
+rugby | le rugby
+golf | le golf
+volleyball | le volley-ball
+handball | le handball
+skiing | le ski
+boxing | la boxe
+gymnastics | la gymnastique
+athletics / track and field | l'athlétisme
+team | l'équipe
+player | le joueur
+coach | l'entraîneur
+match / game | le match
+goal | le but
+ball | le ballon
+field / pitch | le terrain
+championship | le championnat
+victory / win | la victoire
+defeat / loss | la défaite
+to train | s'entraîner
+to win | gagner
+to lose | perdre
+to play (a sport) | jouer

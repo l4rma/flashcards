@@ -31,13 +31,15 @@ function useDebounced(value, delayMs) {
 export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, onLeveledUp }) {
   const [english, setEnglish] = useState("");
   const [french, setFrench] = useState("");
+  const [label, setLabel] = useState("");
   const [status, setStatus] = useState(null);
 
   const [cards, setCards] = useState([]);
   const [dueCount, setDueCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
-  const [draft, setDraft] = useState({ french: "", english: "" });
+  const [draft, setDraft] = useState({ french: "", english: "", label: "" });
+  const [activeLabel, setActiveLabel] = useState(null); // null = "All"
 
   async function refresh() {
     setLoading(true);
@@ -67,6 +69,9 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
   const frontDuplicate = isFrontDuplicate(debouncedEnglish);
   const backDuplicate = isBackDuplicate(debouncedFrench);
 
+  const labels = [...new Set(cards.map((c) => c.label).filter(Boolean))].sort();
+  const filteredCards = activeLabel === null ? cards : cards.filter((c) => c.label === activeLabel);
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!french.trim() || !english.trim()) return;
@@ -80,12 +85,13 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
       return;
     }
     try {
-      const created = await createCard(french.trim(), english.trim());
+      const created = await createCard(french.trim(), english.trim(), label.trim() || null);
       onAchievementsUnlocked?.(created.newly_unlocked_achievements);
       onQuestsCompleted?.(created.newly_completed_quests);
       onLeveledUp?.(created.newly_leveled_up);
       setEnglish("");
       setFrench("");
+      setLabel("");
       setStatus({ type: "success", message: "Card added!" });
       await refresh();
     } catch (err) {
@@ -95,7 +101,7 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
 
   function startEdit(card) {
     setEditingId(card.id);
-    setDraft({ french: card.french, english: card.english });
+    setDraft({ french: card.french, english: card.english, label: card.label || "" });
   }
 
   async function saveEdit(id) {
@@ -145,6 +151,17 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
               </span>
             )}
           </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+              Sub-deck (optional)
+            </span>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. animals"
+              className="rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-ink text-sm outline-none focus:ring-2 focus:ring-primary"
+            />
+          </label>
           <button
             type="submit"
             disabled={frontDuplicate || backDuplicate}
@@ -171,14 +188,45 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
             {cards.length} card{cards.length === 1 ? "" : "s"} · {dueCount} due
           </span>
         </div>
+        {labels.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setActiveLabel(null)}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                activeLabel === null
+                  ? "bg-primary text-white"
+                  : "bg-primary-light text-primary-dark hover:bg-primary/20"
+              }`}
+            >
+              All
+            </button>
+            {labels.map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setActiveLabel(l)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                  activeLabel === l
+                    ? "bg-primary text-white"
+                    : "bg-primary-light text-primary-dark hover:bg-primary/20"
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
         {loading ? (
           <p className="text-center py-10 text-ink-soft">Loading…</p>
         ) : (
           <div className="flex flex-col gap-4">
-            {cards.length === 0 && (
-              <p className="text-center text-ink-soft">No cards yet — add one above!</p>
+            {filteredCards.length === 0 && (
+              <p className="text-center text-ink-soft">
+                {cards.length === 0 ? "No cards yet — add one above!" : "No cards with this label."}
+              </p>
             )}
-            {cards.map((card) => (
+            {filteredCards.map((card) => (
               <div
                 key={card.id}
                 style={editingId === card.id ? undefined : { transform: `rotate(${tiltFor(card.id)}deg)` }}
@@ -198,6 +246,12 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
                       value={draft.french}
                       onChange={(e) => setDraft({ ...draft, french: e.target.value })}
                       placeholder="Back"
+                    />
+                    <input
+                      className="rounded-xl border border-primary-light bg-background px-3 py-2 text-sm"
+                      value={draft.label}
+                      onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+                      placeholder="Sub-deck (optional)"
                     />
                     <button
                       type="button"
@@ -220,6 +274,11 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
                       <p className="text-xs text-ink-soft/70">
                         ✓ {card.times_correct} · ✗ {card.times_wrong}
                       </p>
+                      {card.label && (
+                        <span className="inline-block mt-1.5 rounded-full bg-primary-light text-primary-dark text-xs font-bold px-2 py-0.5">
+                          {card.label}
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button

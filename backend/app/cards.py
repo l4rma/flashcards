@@ -21,6 +21,7 @@ def _card_to_item(card: Card) -> dict:
         "times_wrong": card.times_wrong,
         "last_grade": card.last_grade,
         "mastered": card.mastered,
+        "label": card.label,
     }
 
 
@@ -40,12 +41,20 @@ def _item_to_card(item: dict) -> Card:
         times_wrong=int(item["times_wrong"]),
         last_grade=item.get("last_grade"),
         mastered=bool(item["mastered"]),
+        label=item.get("label"),
     )
 
 
-def create_card(store: Store, user_id: str, french: str, english: str, today: date | None = None) -> Card:
+def create_card(
+    store: Store,
+    user_id: str,
+    french: str,
+    english: str,
+    label: str | None = None,
+    today: date | None = None,
+) -> Card:
     today = today or date.today()
-    card = Card(user_id=user_id, french=french, english=english, due_date=today)
+    card = Card(user_id=user_id, french=french, english=english, label=label, due_date=today)
     store.cards.put_item(Item=_card_to_item(card))
     return card
 

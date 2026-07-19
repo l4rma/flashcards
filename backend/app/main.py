@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
@@ -8,6 +8,7 @@ from app import achievements as achievements_mod
 from app import cards as cards_mod
 from app import collection as collection_mod
 from app import leveling as leveling_mod
+from app import prebuilt_decks as prebuilt_decks_mod
 from app import quests as quests_mod
 from app import stats as stats_mod
 from app.auth import get_current_user_id
@@ -26,6 +27,8 @@ from app.schemas import (
     LevelUpNotice,
     LootboxOpenResult,
     LootboxTier,
+    PrebuiltDeckOut,
+    PrebuiltDeckSummary,
     ProfileUpdate,
     QuestCompletionNotice,
     QuestOut,
@@ -77,7 +80,7 @@ def _finalize_level(store: Store, user_id: str, stats) -> list[LevelUpNotice]:
 def create_card(
     payload: CardCreate, store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)
 ):
-    card = cards_mod.create_card(store, user_id, payload.french, payload.english)
+    card = cards_mod.create_card(store, user_id, payload.french, payload.english, label=payload.label)
 
     today = date.today()
     stats = stats_mod.get_or_create_stats(store, user_id)
@@ -122,6 +125,8 @@ def update_card(
         card.french = payload.french
     if payload.english is not None:
         card.english = payload.english
+    if "label" in payload.model_fields_set:
+        card.label = payload.label
     cards_mod.save_card(store, card)
     return CardOut.model_validate(card)
 
@@ -291,6 +296,31 @@ def open_lootbox(
         **reward,
         newly_unlocked_achievements=_unlock_notices(newly_unlocked),
         newly_leveled_up=newly_leveled_up,
+    )
+
+
+@app.get("/prebuilt-decks", response_model=list[PrebuiltDeckSummary])
+def list_prebuilt_decks():
+    """No auth dependency needed — every request already passed API
+    Gateway's JWT authorizer before Lambda runs (see terraform/
+    api_gateway.tf's single $default route), and this content isn't
+    scoped to a user anyway (see SPEC.md's Open decisions #11 — browsable
+    practice content, not something stored per-user)."""
+    return [
+        PrebuiltDeckSummary(key=deck.key, title=deck.title, card_count=len(deck.cards))
+        for deck in prebuilt_decks_mod.DECKS
+    ]
+
+
+@app.get("/prebuilt-decks/{key}", response_model=PrebuiltDeckOut)
+def read_prebuilt_deck(key: str):
+    deck = prebuilt_decks_mod.get_deck(key)
+    if deck is None:
+        raise HTTPException(status_code=404, detail="Pre-built deck not found")
+    return PrebuiltDeckOut(
+        key=deck.key,
+        title=deck.title,
+        cards=[{"english": c.english, "french": c.french} for c in deck.cards],
     )
 
 
