@@ -24,6 +24,8 @@ def _stats_to_item(stats: Stats) -> dict:
         "user_id": stats.user_id,
         "username": stats.username,
         "avatar_key": stats.avatar_key,
+        "xp": stats.xp,
+        "level": stats.level,
         "coins": stats.coins,
         "current_streak": stats.current_streak,
         "longest_streak": stats.longest_streak,
@@ -58,6 +60,8 @@ def _item_to_stats(item: dict) -> Stats:
         user_id=item["user_id"],
         username=item.get("username"),
         avatar_key=item.get("avatar_key"),
+        xp=int(item.get("xp", 0)),
+        level=int(item.get("level", 1)),
         coins=int(item.get("coins", 0)),
         current_streak=int(item.get("current_streak", 0)),
         longest_streak=int(item.get("longest_streak", 0)),
@@ -140,6 +144,7 @@ def record_training_activity(
     if grade == Grade.correct:
         stats.coins += COINS_PER_CORRECT
         stats.lifetime_coins_earned += COINS_PER_CORRECT
+        stats.xp += COINS_PER_CORRECT
         stats.current_correct_streak += 1
         stats.longest_correct_streak = max(stats.longest_correct_streak, stats.current_correct_streak)
         stats.total_correct += 1
@@ -174,6 +179,7 @@ def record_card_mastered(stats: Stats) -> Stats:
 def award_session_complete(stats: Stats) -> Stats:
     stats.coins += SESSION_COMPLETE_BONUS
     stats.lifetime_coins_earned += SESSION_COMPLETE_BONUS
+    stats.xp += SESSION_COMPLETE_BONUS
     stats.sessions_completed += 1
     if not stats.session_had_wrong:
         stats.flawless_sessions_completed += 1
@@ -189,6 +195,8 @@ def reset_all_stats(stats: Stats) -> Stats:
     total_cards deliberately survives (mirrors the deck-size achievements'
     documented exception: this action doesn't delete cards, only resets
     scheduling state, so the count of cards that exist shouldn't drop)."""
+    stats.xp = 0
+    stats.level = 1
     stats.coins = 0
     stats.current_streak = 0
     stats.longest_streak = 0

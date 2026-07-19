@@ -3,7 +3,7 @@ import { completeSession, gradeCard, getQuests, listDueCards } from "../api";
 import FlipCard from "../components/FlipCard";
 import ProgressBar from "../components/ProgressBar";
 
-export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCompleted }) {
+export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCompleted, onLeveledUp }) {
   const [queue, setQueue] = useState(null); // null while loading
   const [trainQuest, setTrainQuest] = useState(null);
   const [flipped, setFlipped] = useState(false);
@@ -58,6 +58,7 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
       const updated = await gradeCard(current.id, result);
       onAchievementsUnlocked?.(updated.newly_unlocked_achievements);
       onQuestsCompleted?.(updated.newly_completed_quests);
+      onLeveledUp?.(updated.newly_leveled_up);
       const rest = queue.slice(1);
       const newQueue = result === "wrong" ? [...rest, updated] : rest;
       setQueue(newQueue);
@@ -67,6 +68,7 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
       if (newQueue.length === 0) {
         const sessionStats = await completeSession();
         onAchievementsUnlocked?.(sessionStats.newly_unlocked_achievements);
+        onLeveledUp?.(sessionStats.newly_leveled_up);
         onGraded?.();
       }
     } finally {

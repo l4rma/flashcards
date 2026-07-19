@@ -28,7 +28,7 @@ function useDebounced(value, delayMs) {
   return debounced;
 }
 
-export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) {
+export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, onLeveledUp }) {
   const [english, setEnglish] = useState("");
   const [french, setFrench] = useState("");
   const [status, setStatus] = useState(null);
@@ -83,6 +83,7 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted }) 
       const created = await createCard(french.trim(), english.trim());
       onAchievementsUnlocked?.(created.newly_unlocked_achievements);
       onQuestsCompleted?.(created.newly_completed_quests);
+      onLeveledUp?.(created.newly_leveled_up);
       setEnglish("");
       setFrench("");
       setStatus({ type: "success", message: "Card added!" });

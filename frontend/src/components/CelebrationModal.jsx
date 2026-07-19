@@ -5,6 +5,7 @@ import CoinIcon from "./CoinIcon";
 const HEADINGS = {
   achievement: "Grats! You earned an achievement!",
   quest: "Quest complete!",
+  level_up: "Level up!",
 };
 
 export default function CelebrationModal({ celebration, onDismiss }) {

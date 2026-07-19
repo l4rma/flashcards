@@ -73,6 +73,15 @@ function App() {
     }
   }
 
+  function handleLeveledUp(newlyLeveledUp) {
+    if (newlyLeveledUp?.length) {
+      setCelebrationQueue((queue) => [
+        ...queue,
+        ...newlyLeveledUp.map((l) => ({ kind: "level_up", ...l })),
+      ]);
+    }
+  }
+
   if (authError) {
     return (
       <div className="text-center py-10 text-ink-soft">
@@ -104,6 +113,7 @@ function App() {
             onGraded={refreshStats}
             onAchievementsUnlocked={handleAchievementsUnlocked}
             onQuestsCompleted={handleQuestsCompleted}
+            onLeveledUp={handleLeveledUp}
           />
         )}
         {tab === "deck" && (
@@ -111,6 +121,7 @@ function App() {
             key={tab}
             onAchievementsUnlocked={handleAchievementsUnlocked}
             onQuestsCompleted={handleQuestsCompleted}
+            onLeveledUp={handleLeveledUp}
           />
         )}
         {tab === "progress" && <ProgressPage key={tab} />}

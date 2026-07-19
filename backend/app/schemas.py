@@ -67,6 +67,21 @@ class AchievementUnlockNotice(BaseModel):
     coin_reward: int
 
 
+class LevelUpNotice(BaseModel):
+    """Display info for a level-up celebration — same shape as
+    AchievementUnlockNotice/QuestCompletionNotice (key/title/description/
+    badge/coin_reward) so the frontend's CelebrationModal needs no
+    special-casing. `key` is synthesized from the new level, not looked
+    up from a static definitions list the way achievements/quests are,
+    since a level has no fixed catalog entry."""
+
+    key: str
+    title: str
+    description: str
+    badge: str
+    coin_reward: int
+
+
 class QuestCompletionNotice(BaseModel):
     """Display info for a just-completed daily quest — same idea as
     AchievementUnlockNotice, attached to the response of whichever action
@@ -93,6 +108,7 @@ class CardOut(BaseModel):
     times_wrong: int
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_completed_quests: list[QuestCompletionNotice] = []
+    newly_leveled_up: list[LevelUpNotice] = []
 
 
 class StatsOut(BaseModel):
@@ -100,12 +116,15 @@ class StatsOut(BaseModel):
 
     username: str | None = None
     avatar_key: str | None = None
+    xp: int
+    level: int
     coins: int
     current_streak: int
     longest_streak: int
     last_active_date: date | None
     session_initial_due: int
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
+    newly_leveled_up: list[LevelUpNotice] = []
 
 
 class AchievementHistoryEntry(BaseModel):

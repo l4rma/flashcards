@@ -453,50 +453,102 @@ counters rather than a live card count.
 progress_current, progress_target, coin_reward }`, one entry per quest (no
 family-collapsing needed — there's no tiering, just today's fixed set).
 
-### Celebration popup (achievements + daily quests)
+### Leveling (XP + Level)
 
-Whenever an achievement is newly unlocked, or a daily quest is newly
-completed, the frontend pops a full-screen celebration: a confetti burst
-(`canvas-confetti`, ~3KB, no React wrapper — just called imperatively in a
-`useEffect`) plus a modal with a heading ("Grats! You earned an
-achievement!" or "Quest complete!"), the badge (large emoji), title,
-description, and the coin reward earned. Same modal component for both —
-`AchievementUnlockNotice` and `QuestCompletionNotice` have the identical
-shape (`key`/`title`/`description`/`badge`/`coin_reward`), so
-`CelebrationModal` just takes a `celebration` object tagged with
-`kind: "achievement" | "quest"` to pick the heading text.
+`Stats` gains `xp` (int, running total) and `level` (int, starts at 1) —
+unlike profile identity, this **is** gamification progress, so it's
+zeroed by "Reset all progress" (`reset_all_stats`) rather than surviving
+like `total_cards`, consistent with the app's established policy that
+lifetime-feeling fields do not survive a reset (see Open decisions #5 —
+that policy exists precisely because leaving fields like this alone
+caused real confusing bugs before).
 
-No new endpoints for this — `check_and_unlock_achievements` and
-`check_and_complete_quests` were already called as side effects of
-`POST /cards` and `POST /cards/{id}/grade` (achievements also on
-`POST /stats/session-complete`), but their return values (lists of
-newly-unlocked/newly-completed keys) used to be discarded. Now
+**XP mirrors coin-earning 1:1** — every action that earns coins earns the
+identical amount of XP, via the exact same call sites, no separate event
+wiring: a Correct grade (`stats.py`'s `record_training_activity`,
+`+COINS_PER_CORRECT`), the session-complete bonus (`award_session_complete`,
+`+SESSION_COMPLETE_BONUS`), and achievement/quest coin rewards (an extra
+`xp :r` added to the existing `ADD coins :r, lifetime_coins_earned :r`
+DynamoDB transaction in `achievements.check_and_unlock_achievements`/
+`quests.check_and_complete_quests` — same summed-reward value, same
+atomic write, just one more attribute touched).
+
+**Level is purely derived from `xp`**, not tracked incrementally itself —
+`app/leveling.py`'s `level_for_xp(xp)` walks `xp_for_level(level)`
+(cumulative XP needed to *reach* a level: `100 * (level-1) * level / 2`,
+i.e. 100/300/600/1000 XP for levels 2/3/4/5 — each level needs 100 more
+XP than the last to reach, same escalating-but-not-exploding shape as the
+achievement tiers). This means level-up isn't gated by a completion-row
+the way achievement/quest unlocks are (nothing to guard against
+double-awarding — a given xp total always derives the same level), so
+`leveling.finalize_level(store, user_id, stats)` is a **separate, simple**
+step (not folded into the achievement/quest transactions above): called
+once per request, *after* every other stats-mutating step regardless of
+how many separate xp sources fired, it recomputes level from the final
+xp total and, if it went up, awards a flat `LEVEL_UP_COIN_REWARD` (20)
+bonus coins per level gained (summed if multiple levels are crossed in
+one big xp jump) via one plain `update_item` — safe to call
+unconditionally, a no-op returning 0 when xp didn't cross a new
+threshold. Called from `POST /cards`, `POST /cards/{id}/grade`, and
+`POST /stats/session-complete` — the three routes that can move xp.
+
+No dedicated `GET /level` endpoint — `xp`/`level` ride along on the
+existing `GET /stats` (`StatsOut`), same reasoning as profile identity
+above (`Stats` already is the one-item-per-user blob).
+
+### Celebration popup (achievements, daily quests, and level-ups)
+
+Whenever an achievement is newly unlocked, a daily quest is newly
+completed, or the user levels up, the frontend pops a full-screen
+celebration: a confetti burst (`canvas-confetti`, ~3KB, no React wrapper —
+just called imperatively in a `useEffect`) plus a modal with a heading
+("Grats! You earned an achievement!" / "Quest complete!" / "Level up!"),
+the badge (large emoji), title, description, and the coin reward earned.
+Same modal component for all three — `AchievementUnlockNotice`/
+`QuestCompletionNotice`/`LevelUpNotice` all share the identical shape
+(`key`/`title`/`description`/`badge`/`coin_reward`), so `CelebrationModal`
+just takes a `celebration` object tagged with
+`kind: "achievement" | "quest" | "level_up"` to pick the heading text.
+`LevelUpNotice`'s `key`/`title`/`description` are synthesized from the new
+level number (`f"level_{level}"`, `f"Level {level}!"`) rather than looked
+up from a static definitions list the way achievements/quests are, since
+a level has no fixed catalog entry to look up.
+
+No new endpoints for this — `check_and_unlock_achievements`,
+`check_and_complete_quests`, and `leveling.finalize_level` were already
+called as side effects of `POST /cards` and `POST /cards/{id}/grade`
+(achievements and leveling also on `POST /stats/session-complete`), but
+their return values (lists of newly-unlocked/newly-completed keys, or a
+levels-gained count) used to be discarded or nonexistent. Now
 `CardOut`/`StatsOut` carry `newly_unlocked_achievements:
-list[AchievementUnlockNotice]` (all three endpoints) and `CardOut` also
-carries `newly_completed_quests: list[QuestCompletionNotice]` (only
+list[AchievementUnlockNotice]` and `newly_leveled_up: list[LevelUpNotice]`
+(all three endpoints for both) and `CardOut` also carries
+`newly_completed_quests: list[QuestCompletionNotice]` (only
 `POST /cards` and `POST /cards/{id}/grade` — quests don't complete via
 session-complete), populated via `achievements.describe_achievements(keys)`
-/ `quests.describe_quests(keys)` — empty on every other call (`GET /cards`,
+/ `quests.describe_quests(keys)` / a small inline builder for the
+level-up notice — empty on every other call (`GET /cards`,
 `PATCH /cards/{id}`, etc.). Deliberately attached to the existing
 responses instead of a separate endpoint/polling mechanism, since the
-unlock/completion can only happen exactly when one of those actions
-runs — no new round-trip needed, and no risk of missing/duplicating a
-notification between requests.
+unlock/completion/level-up can only happen exactly when one of those
+actions runs — no new round-trip needed, and no risk of missing/
+duplicating a notification between requests.
 
 Frontend: `TrainPage` (after grading and after session-complete) and
-`DeckPage` (after adding a card) call `onAchievementsUnlocked` and
-`onQuestsCompleted` callbacks with those fields; `App.jsx` owns a single
-global FIFO queue (`celebrationQueue`, mixing both kinds) so the popup
-shows regardless of which tab triggered it, and multiple simultaneous
-unlocks/completions (e.g. crossing several deck-size tiers in one add, or
-an achievement and a quest completing on the same grade) queue up and
-show one at a time rather than overlapping. Popup renders at the `App`
+`DeckPage` (after adding a card) call `onAchievementsUnlocked`,
+`onQuestsCompleted`, and `onLeveledUp` callbacks with those fields;
+`App.jsx` owns a single global FIFO queue (`celebrationQueue`, mixing all
+three kinds) so the popup shows regardless of which tab triggered it, and
+multiple simultaneous unlocks/completions/level-ups (e.g. crossing
+several deck-size tiers in one add, or an achievement and a quest
+completing on the same grade) queue up and show one at a time rather than
+overlapping. Popup renders at the `App`
 level (`z-50`, covers everything) so it isn't tied to any one page's
 lifecycle.
 
 ### API
 
-- `GET /stats` → `{ username, avatar_key, coins, current_streak,
+- `GET /stats` → `{ username, avatar_key, xp, level, coins, current_streak,
   longest_streak, last_active_date, session_initial_due }`. Also freezes
   `session_initial_due` for the day on first call (see above).
 - `PATCH /profile` → `{ username?, avatar_key? }`, returns the updated
@@ -777,3 +829,12 @@ these you'd like changed:
     during practice, since that machinery isn't Card-row-independent
     today; a practice round's only feedback is a client-side summary that
     never reaches the backend. See `TASKS.md` Phase 14.
+15. **Leveling's XP curve, coin bonus, and reset policy** — three
+    assumed numbers/decisions, flag any if you want them changed:
+    `LEVEL_XP_STEP = 100` (level *N* needs cumulative `100*(N-1)*N/2`
+    XP — 100/300/600/1000 for levels 2-5), `LEVEL_UP_COIN_REWARD = 20`
+    flat coins per level gained, and **xp/level reset on "Reset all
+    progress"** (chosen over "survives resets" specifically *because* the
+    lifetime-fields-survive-resets pattern already caused real bugs once
+    — see #5 above — not because leveling is inherently less permanent
+    than achievements in spirit). See `TASKS.md` Phase 10 and `app/leveling.py`.

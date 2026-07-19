@@ -709,24 +709,49 @@ relative to Phase 8.
       applied.
 
 ## Phase 10 — Leveling system (XP + Level)
-No dependency on Phase 9. Needed before Phase 11 (lootboxes can reward
-XP, level-ups can grant a lootbox) and Phase 12 (Profile's XP bar).
-- [ ] `Stats` gains `xp` (int) and `level` (int, stored + recomputed on
-      every XP award rather than derived live on every read).
-- [ ] **Assumed** XP source: every action that currently earns coins also
-      earns equal XP (a Correct grade, the session-complete bonus,
-      achievement/quest coin rewards) — reuses the exact existing call
-      sites as a parallel counter, no new event wiring. Flag if you want
-      XP to follow a different curve than coins.
-- [ ] **Assumed** a level needs a concrete XP curve (e.g. level *N* needs
-      cumulative `100 * N` XP, or an escalating curve) — will propose
-      exact numbers when this phase starts unless you already have ones
-      in mind.
-- [ ] Level-up detection, same snapshot-then-reward two-phase pattern as
-      achievements/quests. A level-up is itself an acquisition trigger
-      for Phase 11's lootboxes.
-- [ ] Level-up celebration — reuses `CelebrationModal`, new
-      `kind: "level_up"`.
+- [x] `Stats` gains `xp` (int) and `level` (int, default 1) — reset by
+      "Reset all progress" (this IS gamification progress, unlike Phase
+      9's profile identity; see SPEC.md Open decisions #15 for why that's
+      consistent with the app's established anti-lifetime-fields-survive-
+      resets policy from Open decisions #5).
+- [x] XP mirrors coin-earning 1:1 — a Correct grade
+      (`record_training_activity`) and the session-complete bonus
+      (`award_session_complete`) both gained a matching `stats.xp +=`
+      line right next to their existing `stats.coins +=`. Achievement/
+      quest coin rewards also grant matching XP: their existing
+      `transact_write_items` `UpdateExpression` grew from
+      `"ADD coins :r, lifetime_coins_earned :r"` to also `, xp :r` — same
+      atomic write, one more attribute, no new transaction.
+- [x] `app/leveling.py` (new): `xp_for_level(level)` = cumulative XP to
+      *reach* a level (`100 * (level-1) * level / 2` — 100/300/600/1000
+      for levels 2-5), `level_for_xp(xp)`, `LEVEL_UP_COIN_REWARD = 20`.
+      `finalize_level(store, user_id, stats)` recomputes level from the
+      *final* xp total and, if it rose, awards `LEVEL_UP_COIN_REWARD *
+      levels_gained` bonus coins via one plain `update_item` —**not**
+      folded into the achievement/quest transactions (no completion-row
+      needed to guard against double-award, since level is always
+      re-derivable from xp; see SPEC.md's Leveling section for the full
+      reasoning). Called once per request, after every other
+      stats-mutating step, from `POST /cards`, `POST /cards/{id}/grade`,
+      `POST /stats/session-complete` — the three routes that can move xp.
+- [x] `LevelUpNotice` schema (same shape as Achievement/Quest notices);
+      `CardOut`/`StatsOut` gained `newly_leveled_up: list[LevelUpNotice]`.
+      Level-up celebration reuses `CelebrationModal`, new
+      `kind: "level_up"` → "Level up!" heading. Frontend: `TrainPage`/
+      `DeckPage` gained an `onLeveledUp` callback alongside the existing
+      achievement/quest ones, feeding the same `App.jsx` celebration
+      queue.
+- [x] No persistent Level/XP display yet — deliberately deferred to Phase
+      12 (Profile page redesign), which is where the header bar actually
+      lives; for now leveling is only visible via the celebration popup.
+- [x] 17 new backend tests (`test_leveling.py` — pure formula/
+      `finalize_level` unit tests; `test_leveling_api.py` — end-to-end
+      wiring through `POST /cards`/`/grade`/`/stats/session-complete`,
+      deliberately asserting XP *deltas* and the level/xp consistency
+      invariant rather than hardcoded totals, since achievement-reward
+      cascades make exact cumulative XP hard to hand-predict) + 2 in
+      `test_stats.py` for the pure per-grade/session-bonus XP wiring.
+      128 backend tests total. `npm run build` + `oxlint` clean.
 
 ## Phase 11 — Collection systems + Collection page (titles, themes, lootboxes)
 Depends on Phase 10 (XP as a lootbox reward, level-ups as an acquisition

@@ -124,7 +124,11 @@ def check_and_complete_quests(store: Store, user_id: str, stats: Stats, today: d
             "Update": {
                 "TableName": STATS_TABLE,
                 "Key": serialize_item({"user_id": user_id}),
-                "UpdateExpression": "ADD coins :r, lifetime_coins_earned :r",
+                # xp mirrors coins 1:1 (see leveling.py) — level-up itself
+                # is deliberately *not* computed here; finalize_level()
+                # reconciles stats.level from the resulting xp total as a
+                # separate, simple step after this transaction commits.
+                "UpdateExpression": "ADD coins :r, lifetime_coins_earned :r, xp :r",
                 "ExpressionAttributeValues": {":r": {"N": str(total_reward)}},
             }
         }
@@ -133,6 +137,7 @@ def check_and_complete_quests(store: Store, user_id: str, stats: Stats, today: d
 
     stats.coins += total_reward
     stats.lifetime_coins_earned += total_reward
+    stats.xp += total_reward
     return [quest.key for quest in newly_completed]
 
 

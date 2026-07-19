@@ -6,6 +6,7 @@ from mangum import Mangum
 
 from app import achievements as achievements_mod
 from app import cards as cards_mod
+from app import leveling as leveling_mod
 from app import quests as quests_mod
 from app import stats as stats_mod
 from app.auth import get_current_user_id
@@ -19,6 +20,7 @@ from app.schemas import (
     CardUpdate,
     Grade,
     GradeRequest,
+    LevelUpNotice,
     ProfileUpdate,
     QuestCompletionNotice,
     QuestOut,
@@ -46,6 +48,26 @@ def _quest_notices(keys: list[str]) -> list[QuestCompletionNotice]:
     return [QuestCompletionNotice(**notice) for notice in quests_mod.describe_quests(keys)]
 
 
+def _finalize_level(store: Store, user_id: str, stats) -> list[LevelUpNotice]:
+    """Call after every other stats-mutating step in a request (achievement/
+    quest checks included, since their reward transactions also add xp) —
+    see leveling.finalize_level for why this is a separate, simple step
+    rather than folded into those transactions."""
+    levels_gained = leveling_mod.finalize_level(store, user_id, stats)
+    if levels_gained <= 0:
+        return []
+    bonus = leveling_mod.LEVEL_UP_COIN_REWARD * levels_gained
+    return [
+        LevelUpNotice(
+            key=f"level_{stats.level}",
+            title=f"Level {stats.level}!",
+            description="Keep training to level up again.",
+            badge="⭐",
+            coin_reward=bonus,
+        )
+    ]
+
+
 @app.post("/cards", response_model=CardOut, status_code=201)
 def create_card(
     payload: CardCreate, store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)
@@ -64,10 +86,12 @@ def create_card(
 
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_completed_quests = quests_mod.check_and_complete_quests(store, user_id, stats, today)
+    newly_leveled_up = _finalize_level(store, user_id, stats)
 
     result = CardOut.model_validate(card)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
     result.newly_completed_quests = _quest_notices(newly_completed_quests)
+    result.newly_leveled_up = newly_leveled_up
     return result
 
 
@@ -133,10 +157,12 @@ def grade_card(
 
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_completed_quests = quests_mod.check_and_complete_quests(store, user_id, stats, today)
+    newly_leveled_up = _finalize_level(store, user_id, stats)
 
     result = CardOut.model_validate(card)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
     result.newly_completed_quests = _quest_notices(newly_completed_quests)
+    result.newly_leveled_up = newly_leveled_up
     return result
 
 
@@ -172,9 +198,11 @@ def session_complete(store: Store = Depends(get_store), user_id: str = Depends(g
     stats_mod.save_stats(store, stats)
 
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up = _finalize_level(store, user_id, stats)
 
     result = StatsOut.model_validate(stats)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
+    result.newly_leveled_up = newly_leveled_up
     return result
 
 

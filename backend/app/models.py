@@ -40,6 +40,14 @@ class Stats:
     # reasoning as total_cards being spared).
     username: str | None = None
     avatar_key: str | None = None
+    # Leveling — mirrors coin-earning 1:1 (see leveling.py). Unlike
+    # profile identity above, this IS gamification progress, so it's
+    # deliberately reset by "reset all progress", same as coins/
+    # lifetime_coins_earned — the app's established policy (see
+    # CLAUDE.md's Rules) is that lifetime-feeling fields do NOT survive a
+    # reset, after that produced real confusing bugs for achievements.
+    xp: int = 0
+    level: int = 1
     coins: int = 0
     current_streak: int = 0
     longest_streak: int = 0

@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from app.models import Stats
 from app.schemas import Grade
 from app.stats import (
+    SESSION_COMPLETE_BONUS,
     award_session_complete,
     record_card_mastered,
     record_comeback,
@@ -70,6 +71,24 @@ def test_correct_awards_coins_wrong_does_not():
 
     assert stats.coins == 1
     assert stats.lifetime_coins_earned == 1
+
+
+def test_correct_awards_xp_wrong_does_not():
+    stats = make_stats()
+    today = date(2026, 1, 10)
+
+    record_training_activity(stats, Grade.correct, today=today)
+    record_training_activity(stats, Grade.wrong, today=today)
+
+    assert stats.xp == 1
+
+
+def test_session_complete_bonus_awards_xp():
+    stats = make_stats()
+
+    award_session_complete(stats)
+
+    assert stats.xp == SESSION_COMPLETE_BONUS
 
 
 def test_correct_and_wrong_update_total_counters():
@@ -304,6 +323,8 @@ def test_reset_all_stats_clears_lifetime_achievement_fields_too():
         largest_session_completed=40,
         trained_before_7am=True,
         trained_after_11pm=True,
+        xp=1200,
+        level=5,
     )
 
     reset_all_stats(stats)
@@ -315,5 +336,7 @@ def test_reset_all_stats_clears_lifetime_achievement_fields_too():
     assert stats.comebacks == 0
     assert stats.flawless_sessions_completed == 0
     assert stats.largest_session_completed == 0
+    assert stats.xp == 0
+    assert stats.level == 1
     assert stats.trained_before_7am is False
     assert stats.trained_after_11pm is False
