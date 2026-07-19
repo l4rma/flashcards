@@ -2,12 +2,34 @@ import { useEffect, useState } from "react";
 import { completeSession, gradeCard, getQuests, listDueCards } from "../api";
 import FlipCard from "../components/FlipCard";
 import ProgressBar from "../components/ProgressBar";
+import ExtraTrainingPicker from "./ExtraTrainingPicker";
+import PracticeSession from "./PracticeSession";
+
+function ExtraTrainingLink({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-sm font-bold text-primary-dark hover:text-primary-dark/80 transition underline-offset-4 hover:underline"
+    >
+      🎲 Extra Training
+    </button>
+  );
+}
 
 export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCompleted, onLeveledUp }) {
   const [queue, setQueue] = useState(null); // null while loading
   const [trainQuest, setTrainQuest] = useState(null);
   const [flipped, setFlipped] = useState(false);
   const [busy, setBusy] = useState(false);
+  // "train" (the real due-card loop) | "picker" (choosing an Extra
+  // Training source) | "practice" (running one). Extra Training is
+  // deliberately a separate mode, not folded into the queue above — it
+  // never touches Card scheduling or gamification state (see SPEC.md's
+  // Extra Training section), so it needs its own non-persisted queue and
+  // grading path entirely.
+  const [mode, setMode] = useState("train");
+  const [practice, setPractice] = useState(null); // { queue, title } | null
 
   async function refreshTrainQuest() {
     const quests = await getQuests();
@@ -20,6 +42,24 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
       setTrainQuest(quests.find((q) => q.key === "daily_train") ?? null);
     });
   }, []);
+
+  function startPractice(practiceQueue, title) {
+    setPractice({ queue: practiceQueue, title });
+    setMode("practice");
+  }
+
+  function exitPractice() {
+    setPractice(null);
+    setMode("train");
+  }
+
+  if (mode === "picker") {
+    return <ExtraTrainingPicker onStart={startPractice} onClose={() => setMode("train")} />;
+  }
+
+  if (mode === "practice" && practice) {
+    return <PracticeSession queue={practice.queue} title={practice.title} onExit={exitPractice} />;
+  }
 
   if (queue === null) {
     return (
@@ -37,6 +77,9 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
         <p className="text-ink-soft max-w-xs">
           No cards due right now — nice work. Add more in Deck to keep growing today's stack.
         </p>
+        <div className="mt-2">
+          <ExtraTrainingLink onClick={() => setMode("picker")} />
+        </div>
       </div>
     );
   }
@@ -119,6 +162,7 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
           </button>
         </div>
       )}
+      <ExtraTrainingLink onClick={() => setMode("picker")} />
     </div>
   );
 }

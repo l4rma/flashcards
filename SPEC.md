@@ -87,9 +87,8 @@ covers every path, see `terraform/api_gateway.tf`), so these are just as
 authenticated as anything else — they just don't need per-user data,
 since the content itself isn't scoped to a user.
 
-Nothing consumes these yet on the frontend — that's Phase 14 (Training
-2.0's "Extra Training" practice mode, which reads from a pre-built deck
-the same schedule-free way it reads from your own cards).
+Consumed by Extra Training's practice mode (see Extra Training, below),
+the same schedule-free way it reads from your own cards.
 
 ## Scheduling algorithm
 
@@ -184,7 +183,56 @@ Pages:
   shown, and each row displays its label as a small pill when set.
 - **Train** — the core loop: show English word (front) → click to flip and
   reveal the French word (back) → grade buttons → next card. Shows
-  "Session complete" when the queue is empty.
+  "Session complete" when the queue is empty. A small "🎲 Extra Training"
+  text link sits below the due-card loop (both when cards are due and on
+  the "Session complete" screen) — see Extra Training, below.
+
+### Extra Training (practice mode)
+
+A schedule-free practice mode, reachable from the "🎲 Extra Training" link
+on Train — deliberately a **separate mode** within `TrainPage.jsx`
+(`mode: "train" | "picker" | "practice"`, `ExtraTrainingPicker.jsx` /
+`PracticeSession.jsx`), not folded into the real due-card queue above,
+since it never touches `Card` scheduling or any gamification state (see
+Open decisions #14).
+
+**Picker** (`ExtraTrainingPicker.jsx`): choose a source —
+- **All my cards** or **by sub-deck** (one button per distinct `label` in
+  use, both counts shown) — reuses the already-fetched `GET /cards`
+  response, no new endpoint.
+- **A pre-built deck** (`GET /prebuilt-decks`) — each listed with a
+  **Preview** button (fetches the full deck and opens a modal: title +
+  a scrollable list of just the English words, closable via its own ✕,
+  the "Close" button, or clicking outside — same modal pattern as the
+  achievement-detail popup) and a **Practice** button that fetches the
+  full deck and starts the session directly.
+
+Deliberately **not** styled with the Deck list's tilted-stack motif —
+that motif specifically reads as "your own physical pile of cards";
+pre-built decks are presented as a plain menu of rows instead, a small
+visual cue reinforcing that this is borrowed/browsable content, not
+something you own (consistent with them never entering `Cards`).
+
+**Practice** (`PracticeSession.jsx`): a single linear pass through the
+chosen queue, once — **no requeue on Wrong**, unlike the real Train loop
+(per explicit request: "going through that one deck, once"). Reuses the
+same `FlipCard` component and Wrong/Correct button styling as Train, but:
+- Grading only updates local `correct`/`wrong` counters — **no API call
+  at all**, since nothing here is meant to persist (see Open decisions
+  #14: no `Card` mutation, no coins/xp/streak/quest/achievement credit).
+- A fixed ✕ button (top-right, floating pill, same visual language as the
+  nav bar's floating pills) exits the session at any point, straight back
+  to Train's normal view — you don't have to finish the deck.
+- Reaching the end shows a "Practice complete" summary (correct/wrong
+  tally) with **Practice again** (resets the same queue) and **Done**
+  (exits) — a deliberate parallel to Train's own "Session complete"
+  screen, but with a tally instead of a due-count message, since nothing
+  was actually scheduled.
+
+Pre-built-deck cards have no real `id` (`PrebuiltCardOut` has no key at
+all — see Pre-built decks, above), so the picker assigns a synthetic
+`prebuilt-<index>` id when building the local practice queue, only used
+as a React list key.
 
 Nav is a floating icon-only pill bar fixed to the bottom of the viewport
 (no text labels) — see `DESIGN.md`'s Navigation section for the bar
@@ -1008,14 +1056,18 @@ these you'd like changed:
     eventual swap-in is mechanical once art exists. See `TASKS.md`
     Phase 16.
 14. **Extra Training / practice sessions (all cards, a labeled subset, or
-    a pre-built deck) are entirely schedule-free.** Grading a card there
-    never touches `interval_days`/`due_date`/`times_correct`/
-    `times_wrong` — consistent with pre-built-deck words having no `Card`
-    row at all to mutate in the first place. Assumed (pending
-    confirmation) to also mean no coins/streak/quest/achievement credit
-    during practice, since that machinery isn't Card-row-independent
-    today; a practice round's only feedback is a client-side summary that
-    never reaches the backend. See `TASKS.md` Phase 14.
+    a pre-built deck) are entirely schedule-free — confirmed, and built
+    with no requeue-on-Wrong either.** Grading a card there never touches
+    `interval_days`/`due_date`/`times_correct`/`times_wrong` — consistent
+    with pre-built-deck words having no `Card` row at all to mutate in
+    the first place — and earns no coins/streak/quest/achievement credit;
+    a practice round's only feedback is a client-side summary that never
+    reaches the backend, no API call at all on each grade. Also
+    confirmed: a single linear pass through the queue ("going through
+    that one deck, once"), not the real Train loop's requeue-Wrong-to-
+    the-back behavior — grading Wrong in practice just moves on, tallied
+    for the end summary, never seen again that round. See `TASKS.md`
+    Phase 14.
 15. **Leveling's XP curve, coin bonus, and reset policy** — three
     assumed numbers/decisions, flag any if you want them changed:
     `LEVEL_XP_STEP = 100` (level *N* needs cumulative `100*(N-1)*N/2`

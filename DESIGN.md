@@ -21,6 +21,13 @@ The deck list (`DeckPage`) extends the same idea: each row gets a tiny,
 stable (id-hashed, not random — doesn't jitter on re-render) tilt of
 ±0.6°, reading as a loose stack rather than a rigid table.
 
+**Deliberately withheld from pre-built decks** (Extra Training's picker,
+`ExtraTrainingPicker.jsx`) — those rows are plain, untilted surface
+cards, not a stack. The tilt motif specifically reads as "your own
+physical pile," so keeping pre-built content visually flat is a small,
+legible cue that this is borrowed/browsable material, not something you
+own — consistent with it never entering `Cards` at all.
+
 ## Typography
 
 Two faces, deliberately paired for contrast rather than one font doing
@@ -178,6 +185,15 @@ small plain text — it's real content now (today's numbers), not a caption.
   animation added on top of it; per the design skill's own restraint
   guidance, this was already the app's "spend your boldness in one place"
   moment and didn't need company.
+- **Exiting Extra Training's practice mode**: a fixed circular ✕ pill
+  (top-right, `bg-surface/95 backdrop-blur` + `ring-1 ring-ink/10`) —
+  deliberately the nav bar's own floating-pill treatment, not a new
+  button style, so "this floats above the content and is always
+  reachable" reads as the same visual idea in both places. The pre-built
+  deck preview (a scrollable English-word list) reuses the existing
+  achievement-detail popup's exact modal shell (`bg-ink/40` backdrop,
+  `rounded-3xl` sheet, close via its own ✕, a "Close" button, or clicking
+  outside) rather than inventing a new modal pattern for one more list.
 
 ## Tech choice
 

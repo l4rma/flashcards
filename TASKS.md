@@ -877,21 +877,36 @@ No dependency on Phases 9-12.
       deck endpoints on the frontend yet — that's Phase 14.
 
 ## Phase 14 — Training 2.0 (Extra Training practice modes)
-Depends on Phase 13 (labels + pre-built-deck content to select from).
-- [ ] New "Extra Training" entry point on the Train page — pick a source:
-      all your cards, a subset by label, or a pre-built deck.
-- [ ] Practice sessions are **entirely schedule-free**, per your answer:
-      no `Card` mutation at all (no `interval_days`/`due_date`/
-      `times_correct`/`times_wrong` changes; pre-built-deck words have no
-      `Card` row to begin with). **Assumed**: this also means no
-      coins/streak/quest/achievement credit during practice, since that
-      machinery isn't Card-row-independent today — a practice session's
-      only feedback is a client-side end-of-round summary, never sent to
-      the backend. Flag if you actually want partial credit (e.g. still
-      earning coins) during practice.
-- [ ] Frontend-only queue logic reused from the existing Train
-      shuffle/requeue-on-Wrong pattern, pointed at a different card
-      source, skipping every grade-side-effect API call.
+- [x] New "🎲 Extra Training" text link on the Train page (visible both
+      while cards are due and on "Session complete") opens a picker —
+      `TrainPage.jsx` gained a `mode: "train" | "picker" | "practice"`
+      state; the due-card loop itself is completely untouched.
+- [x] `ExtraTrainingPicker.jsx`: pick a source — all your cards, a subset
+      by label (one button per distinct label, counts shown, reuses the
+      already-fetched `GET /cards`), or a pre-built deck
+      (`GET /prebuilt-decks`). Each pre-built deck has a **Preview**
+      button (fetches the full deck, opens a scrollable English-word-only
+      modal — reuses the achievement-detail popup's exact shell) and a
+      **Practice** button. Its own ✕ closes the picker back to Train.
+      Pre-built deck rows are deliberately **not** given the Deck list's
+      tilted-stack treatment — see `DESIGN.md`'s Signature element
+      section for why (a visual cue that this content isn't yours).
+- [x] `PracticeSession.jsx`: **confirmed** (not just assumed) fully
+      schedule-free — no `Card` mutation, no coins/xp/streak/quest/
+      achievement credit, **no API call at all** on grading (local
+      `correct`/`wrong` counters only). **Confirmed**: a single linear
+      pass through the queue, once — no requeue-on-Wrong the way the real
+      Train loop has, per explicit request ("going through that one
+      deck, once"). A fixed floating ✕ pill (top-right, same visual
+      treatment as the nav bar's own floating pills) exits at any point.
+      Reaching the end shows a "Practice complete" tally with **Practice
+      again** (same queue, restarts) and **Done**.
+- [x] Pre-built-deck cards have no real `id` from the API
+      (`PrebuiltCardOut` carries none) — the picker assigns a synthetic
+      `prebuilt-<index>` id when building the local practice queue,
+      React-key use only.
+- [x] Frontend-only phase, no backend changes — 167 backend tests still
+      passing unchanged. `npm run build` + `oxlint` clean.
 
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every

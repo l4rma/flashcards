@@ -108,3 +108,11 @@ export function buyLootbox(tier) {
 export function openLootbox(tier) {
   return request(`/collection/lootboxes/${tier}/open`, { method: "POST" });
 }
+
+export function getPrebuiltDecks() {
+  return request("/prebuilt-decks");
+}
+
+export function getPrebuiltDeck(key) {
+  return request(`/prebuilt-decks/${key}`);
+}
