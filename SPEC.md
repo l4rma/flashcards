@@ -259,7 +259,7 @@ toward today's Daily Training quest (see Daily quests, below) — **not** a
 locally-computed fraction of the full due queue. The bar reads
 `progress_current`/`progress_target` straight off `GET /quests`' `daily_train`
 entry (`percent = progress_current / progress_target`), the same data the
-Progress page's Daily Quests box renders, refetched after every grade. This
+Profile page's Daily Quests box renders, refetched after every grade. This
 means the bar counts down from a flat 10 (`TRAIN_TARGET`, see Daily
 quests, below), not from the full due count — the two bars are guaranteed
 identical since they're driven by the same backend values, not two
@@ -417,7 +417,7 @@ Progress resets once per calendar day: `Stats.sync_day` checks
 the same call, so `session_initial_due` (used for the Train page's "N
 cards left to review" count and the Marathon achievement, but no longer
 for the Daily Training target) is correctly frozen for the day regardless
-of whether the Train page, the Progress page, or neither has been opened
+of whether the Train page, the Profile page, or neither has been opened
 yet today. Both quests' progress
 is a `Stats` counter incremented only by the actual action that should
 count (`record_quest_card_added` from `POST /cards`,
@@ -609,9 +609,14 @@ lifecycle.
 
 ### API
 
-- `GET /stats` → `{ username, avatar_key, xp, level, coins, current_streak,
-  longest_streak, last_active_date, session_initial_due }`. Also freezes
-  `session_initial_due` for the day on first call (see above).
+- `GET /stats` → `{ username, avatar_key, equipped_title, equipped_theme,
+  xp, level, xp_into_level, xp_for_next_level, coins, current_streak,
+  longest_streak, last_active_date, session_initial_due }`. The last two
+  `xp_*` fields are computed (`@computed_field` properties on `StatsOut`,
+  not stored) straight from `xp`/`level` via `leveling.xp_for_level` — a
+  ready-to-use `progress_current`/`progress_target` pair for the Profile
+  page's XP bar, same idea as achievements'/quests' progress fields. Also
+  freezes `session_initial_due` for the day on first call (see above).
 - `PATCH /profile` → `{ username?, avatar_key? }`, returns the updated
   `StatsOut` (see Profile identity, below). Both fields optional and
   independent; omit to leave unchanged, `null` to clear.
@@ -659,17 +664,40 @@ below) is the fuller view — streak/coins/session summary, daily quests,
 extra stats, and the achievement grid. Chests are a later phase with their
 own data model, not designed yet.
 
-### Progress page
+### Profile page
 
-A new "Progress" tab: streak/coins/card-count summary (🔥/🪙/📚 — total
-card count, not `session_initial_due`; see below), then a
-**Daily Quests** box directly beneath it (one row per `GET /quests` entry
+Renamed from "Progress" (`ProgressPage.jsx` → `ProfilePage.jsx`) once
+username/avatar (Phase 9), leveling (Phase 10), and Collection (Phase 11)
+existed to actually justify a "Profile" identity, not just a stats page.
+Nav icon unchanged (📈).
+
+New header above everything else: avatar emoji (`avatarEmoji(stats.avatar_key)`
+from `avatars.js`) + `stats.username` (falls back to "Your Profile" if
+unset) + the equipped title's display name directly beneath it (looked up
+from `GET /collection`'s titles list — `StatsOut` only carries the
+*key*, `equipped_title`, not the display name; the Profile page is the
+one place that needs it, so it isn't worth denormalizing onto `StatsOut`
+the way `xp_into_level` was). Absent entirely if no title is equipped.
+
+Then a new **Level card**: "Level *N*" and a purple `ProgressBar` reading
+`xp_into_level`/`xp_for_next_level` straight off `GET /stats` (computed
+fields, see Leveling above) — same "just render what the backend already
+computed" pattern as the Daily Quests bars below it.
+
+Then the streak/coins/card-count/accuracy summary (🔥/🪙/📚/🎯), now a
+**5-item** `grid grid-cols-3` (wraps 3-then-2) rather than a single-row
+flex, gaining a 🎁 lootbox-count stat (summed across all three tiers from
+`GET /collection`) — a plain viewport-width breakpoint (`sm:`) would have
+been the wrong tool here, since this app's content column is capped
+narrow (~384px) regardless of actual device width (see `DESIGN.md`
+Layout), so "make it responsive" has to mean "wraps within a
+fixed-width card," not "changes at a screen-size breakpoint that may
+never even apply to this column."
+
+Then the existing **Daily Quests** box (one row per `GET /quests` entry
 — badge, title, description, a small purple progress bar reusing the
 Train page's `ProgressBar` component, "X/Y" progress, and the coin reward
-or a ✅ once completed), then a few extra computed stats (total cards,
-total lifetime correct/wrong, accuracy %, derived client-side from
-`GET /cards` + `GET /stats` — no new backend aggregation endpoint needed),
-and the achievement grid below — one tile per
+or a ✅ once completed), unchanged, and the achievement grid below — one tile per
 `GET /achievements` entry (badge + title), unlocked ones full color, locked
 ones dimmed. For a tiered family with partial progress this means **two**
 tiles side by side: the highest tier completed (colored) and the next tier
@@ -736,7 +764,7 @@ a separate endpoint, since `Stats` already is the one-item-per-user blob.
 A "Settings" tab (renamed from "Admin" — same page, same auth model, just
 better named now that it holds profile editing too, not just destructive
 actions). No streak/coins/due-count summary shown here (that's the
-Progress page's job; showing it twice was redundant):
+Profile page's job; showing it twice was redundant):
 - **Profile** — username (text input + Save) and avatar (a grid of preset
   emoji, click to select — saves immediately via `PATCH /profile`, no
   separate Save step for the avatar).

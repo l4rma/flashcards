@@ -6,14 +6,14 @@ import StatsBar from "./components/StatsBar";
 import { applyCollectionTheme } from "./collectionTheme";
 import CollectionPage from "./pages/CollectionPage";
 import DeckPage from "./pages/DeckPage";
-import ProgressPage from "./pages/ProgressPage";
+import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import TrainPage from "./pages/TrainPage";
 
 const TABS = [
   { key: "train", label: "Train", icon: "🏋️" },
   { key: "deck", label: "Deck", icon: "📚" },
-  { key: "progress", label: "Progress", icon: "📈" },
+  { key: "profile", label: "Profile", icon: "📈" },
   { key: "collection", label: "Collection", icon: "🎁" },
   { key: "settings", label: "Settings", icon: "⚙️" },
 ];
@@ -135,7 +135,7 @@ function App() {
             onLeveledUp={handleLeveledUp}
           />
         )}
-        {tab === "progress" && <ProgressPage key={tab} />}
+        {tab === "profile" && <ProfilePage key={tab} />}
         {tab === "collection" && (
           <CollectionPage
             key={tab}

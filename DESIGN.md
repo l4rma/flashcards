@@ -101,8 +101,10 @@ needed.
 
 **Moved to a floating pill bar fixed to the bottom of the viewport**
 (user request, thinking mobile-first) — icon-only, same emoji-badge icon
-language as before (🏋️ Train, 📚 Deck, 📈 Progress, 🎁 Collection, ⚙️
-Settings — grew from four icons to five with the Collection tab), each
+language as before (🏋️ Train, 📚 Deck, 📈 Profile, 🎁 Collection, ⚙️
+Settings — grew from four icons to five with the Collection tab; the 📈
+icon stayed put when the tab itself was later relabeled Progress →
+Profile), each
 with an `aria-label`/`title` for accessibility. Deliberately kept **universal
 across all viewport widths, not just mobile** — this app already commits
 to a single narrow centered column even on desktop (see Layout, below),
@@ -137,11 +139,21 @@ small plain text — it's real content now (today's numbers), not a caption.
   available height and vertically centers the card/progress bar/buttons
   (`flex-1 justify-center`), rather than starting content from the top and
   leaving dead space below on tall viewports.
-- Progress page's top-level stats (streak/coins/cards/accuracy) are one
-  unified stat strip with four `font-display` numbers side by side, not
-  four lines of plain text in a paragraph — the single biggest layout fix
-  from the original version, which put nearly everything in a stack of
-  identical white boxes with no hierarchy between them.
+- Profile page's (then still called Progress) top-level stats
+  (streak/coins/cards/accuracy) are one unified stat strip with four
+  `font-display` numbers side by side, not four lines of plain text in a
+  paragraph — the single biggest layout fix from the original version,
+  which put nearly everything in a stack of
+  identical white boxes with no hierarchy between them. Grew a new avatar
+  + username + equipped-title header above everything, and a Level/XP-bar
+  card between that header and the stat strip, once Phases 9-11 gave the
+  page an actual identity to show; the stat strip itself grew a 5th value
+  (🎁 lootbox count) and switched from a single-row flex to a
+  `grid grid-cols-3` (wraps 3-then-2) — a viewport breakpoint would have
+  been the wrong tool, since this app's content column is capped narrow
+  regardless of device width (see Layout, below), so "responsive" here
+  means "wraps within a fixed-width card," not "changes at a screen-size
+  breakpoint."
 - Admin page (renamed **Settings**) originally consolidated from three
   separate elevated cards down to two (settings grouped together, danger
   zone kept visually separate via a coral-tinted surface) — three cards

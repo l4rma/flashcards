@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getAchievements, getQuests, getStats, listCards } from "../api";
+import { getAchievements, getCollection, getQuests, getStats, listCards } from "../api";
+import { avatarEmoji } from "../avatars";
 import CoinIcon from "../components/CoinIcon";
 import ProgressBar from "../components/ProgressBar";
 import { trainedToday } from "../streak";
@@ -18,25 +19,27 @@ function Stat({ icon, value, label }) {
   );
 }
 
-export default function ProgressPage() {
+export default function ProfilePage() {
   const [stats, setStats] = useState(null);
   const [cards, setCards] = useState(null);
   const [achievements, setAchievements] = useState(null);
   const [quests, setQuests] = useState(null);
+  const [collection, setCollection] = useState(null);
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    Promise.all([getStats(), listCards(), getAchievements(), getQuests()]).then(
-      ([statsRes, cardsRes, achievementsRes, questsRes]) => {
+    Promise.all([getStats(), listCards(), getAchievements(), getQuests(), getCollection()]).then(
+      ([statsRes, cardsRes, achievementsRes, questsRes, collectionRes]) => {
         setStats(statsRes);
         setCards(cardsRes);
         setAchievements(achievementsRes);
         setQuests(questsRes);
+        setCollection(collectionRes);
       }
     );
   }, []);
 
-  if (!stats || !cards || !achievements || !quests) {
+  if (!stats || !cards || !achievements || !quests || !collection) {
     return <p className="text-center py-10 text-ink-soft">Loading…</p>;
   }
 
@@ -45,14 +48,40 @@ export default function ProgressPage() {
   const totalGrades = totalCorrect + totalWrong;
   const accuracy = totalGrades > 0 ? Math.round((totalCorrect / totalGrades) * 100) : null;
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
+  const equippedTitle = collection.titles.find((t) => t.equipped);
+  const totalLootboxes = collection.lootboxes.reduce((sum, b) => sum + b.count, 0);
+  const xpPercent =
+    stats.xp_for_next_level > 0
+      ? Math.round((stats.xp_into_level / stats.xp_for_next_level) * 100)
+      : 0;
 
   return (
     <div className="flex flex-col items-center px-4 pt-8 pb-10 gap-8">
-      <h1 className="font-display font-semibold text-2xl text-ink self-start w-full max-w-sm">
-        Progress
-      </h1>
+      <div className="w-full max-w-sm flex items-center gap-3 self-start">
+        <span className="text-4xl leading-none">{avatarEmoji(stats.avatar_key)}</span>
+        <div>
+          <h1 className="font-display font-semibold text-2xl text-ink leading-tight">
+            {stats.username || "Your Profile"}
+          </h1>
+          {equippedTitle && (
+            <p className="text-xs font-bold uppercase tracking-wide text-primary-dark">
+              {equippedTitle.name}
+            </p>
+          )}
+        </div>
+      </div>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex items-start justify-between">
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="font-display font-semibold text-lg text-ink">Level {stats.level}</span>
+          <span className="text-xs font-bold text-ink-soft/70">
+            {stats.xp_into_level}/{stats.xp_for_next_level} XP
+          </span>
+        </div>
+        <ProgressBar percent={xpPercent} />
+      </div>
+
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 grid grid-cols-3 gap-y-5 justify-items-center">
         <Stat
           icon={
             <span
@@ -68,6 +97,7 @@ export default function ProgressPage() {
         <Stat icon={<CoinIcon className="w-5 h-5" />} value={stats.coins} label="coins" />
         <Stat icon="📚" value={cards.length} label="cards" />
         <Stat icon="🎯" value={accuracy === null ? "—" : `${accuracy}%`} label="accuracy" />
+        <Stat icon="🎁" value={totalLootboxes} label="lootboxes" />
       </div>
 
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-5">

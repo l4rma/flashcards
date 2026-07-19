@@ -1,8 +1,9 @@
 from datetime import date, datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
+from app.leveling import xp_for_level
 from app.profile import AVATAR_KEYS, USERNAME_MAX_LENGTH
 
 
@@ -127,6 +128,22 @@ class StatsOut(BaseModel):
     session_initial_due: int
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_leveled_up: list[LevelUpNotice] = []
+
+    @computed_field
+    @property
+    def xp_into_level(self) -> int:
+        """Progress toward the *next* level — `progress_current` for the
+        Profile page's XP bar. Computed here (not stored) so every
+        StatsOut-returning endpoint gets it for free, same reasoning as
+        achievements'/quests' progress_current/progress_target."""
+        return self.xp - xp_for_level(self.level)
+
+    @computed_field
+    @property
+    def xp_for_next_level(self) -> int:
+        """`progress_target` for the XP bar — total XP needed to go from
+        the current level to the next."""
+        return xp_for_level(self.level + 1) - xp_for_level(self.level)
 
 
 class AchievementHistoryEntry(BaseModel):

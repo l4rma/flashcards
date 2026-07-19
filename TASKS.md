@@ -815,15 +815,29 @@ lootbox with nothing in it isn't real).
 ## Phase 12 — Profile page redesign (Progress → Profile)
 Assembles Phases 9-11 — do last in this cluster since it depends on all
 three.
-- [ ] `ProgressPage.jsx` → `ProfilePage.jsx`, nav relabeled Progress →
-      Profile.
-- [ ] New header above the existing stat strip: username + equipped title
-      (Phase 9/11), Level + XP progress bar (Phase 10).
-- [ ] Stat strip gains a 5th value: lootbox inventory count (Phase 11) —
-      **assumed** layout will need to adjust for 5 values on narrow
-      viewports; will confirm exact treatment when this phase starts.
-- [ ] Daily Quests box and Achievements grid carry over unchanged — no
-      behavior change, just now on the renamed page.
+- [x] `StatsOut` gained two `@computed_field` properties,
+      `xp_into_level`/`xp_for_next_level` (derived from `xp`/`level` via
+      `leveling.xp_for_level`, not stored) — a ready `progress_current`/
+      `progress_target` pair for the XP bar, free on every
+      StatsOut-returning endpoint. 3 new backend tests
+      (`test_leveling_progress_api.py`), 153 backend tests total.
+- [x] `ProgressPage.jsx` → `ProfilePage.jsx` (old file deleted), nav tab
+      key/label relabeled Progress → Profile (icon unchanged, 📈).
+- [x] New header above the stat strip: avatar emoji (`avatars.js`) +
+      username (falls back to "Your Profile") + equipped title's display
+      name underneath (resolved from `GET /collection`, since `StatsOut`
+      only carries the title *key* — not worth denormalizing the name
+      onto `StatsOut` for a single call site). Then a new Level card:
+      "Level *N*" + a purple `ProgressBar` reading the new computed
+      fields directly.
+- [x] Stat strip gains a 5th value (🎁 lootbox count, summed across tiers
+      from `GET /collection`) and switched from a single-row flex to
+      `grid grid-cols-3` (wraps 3-then-2) — **not** a viewport breakpoint,
+      since the content column is capped narrow regardless of device
+      width (see `DESIGN.md` Layout).
+- [x] Daily Quests box and Achievements grid carried over unchanged —
+      genuinely no behavior change, just relocated onto the renamed page.
+      `npm run build` + `oxlint` clean.
 
 ## Phase 13 — Deck 2.0 (sub-decks, per-card labels, pre-built decks)
 No dependency on Phases 9-12 — could be built any time after Phase 8.
