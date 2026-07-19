@@ -63,6 +63,13 @@ export function getStats() {
   return request("/stats");
 }
 
+export function updateProfile(fields) {
+  return request("/profile", {
+    method: "PATCH",
+    body: JSON.stringify(fields),
+  });
+}
+
 export function completeSession() {
   return request("/stats/session-complete", { method: "POST" });
 }

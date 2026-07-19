@@ -635,7 +635,202 @@ exists anymore (Phase 6, above) — this is the only environment.
       as a backstop. No backend change — see `SPEC.md`'s Open decisions
       #10 for why this is deliberately frontend-only and not cross-field.
 
-## Phase 8 — Future AI features (backlog, not started)
+## Phase 8 — Bug fix: streak flame "already trained today?" state
+- [x] Streak flame (🔥, previously always shown "lit"/colored on the stats
+      strip and Profile) now has an **unlit/dark state** (`grayscale
+      opacity-40`) for the window before today's first grade lands, even
+      though `current_streak` still correctly reflects a streak carried
+      over from a prior day. Frontend-only, new `frontend/src/streak.js`
+      (`trainedToday(stats)`): compares `stats.last_active_date` against
+      **the browser's UTC date**, not its local date — deliberately, since
+      the backend's own streak logic (`stats.py`'s `record_training_activity`)
+      is anchored to `date.today()` on the Lambda, which runs in UTC by
+      default; comparing against the client's local date would drift from
+      that and misreport the flame's lit state around local midnight in
+      non-UTC timezones (this app has already been bitten by exactly this
+      category of bug twice — see SPEC.md Open decisions #8's Docker
+      clock-skew story). Backend streak logic itself needed no change.
+      Used by both `StatsBar.jsx` (top stat strip, all pages) and
+      `ProgressPage.jsx`'s stat strip. Verified via `npm run build` +
+      `oxlint`, both clean (no dev server available to click through, see
+      `CLAUDE.md`'s Commands section — self-check only, visual
+      confirmation is yours).
+
+## Phase 9 — Profile identity & Settings redesign
+Username + avatar + change password, and folding them into a renamed
+**Settings** page (was Admin) alongside the existing actions. No
+dependency on any other new phase — safe to build first or in any order
+relative to Phase 8.
+- [x] `Stats` gains `username` (string, nullable) and `avatar_key` (string,
+      nullable — a semantic key into a fixed preset list, not a stored
+      image). App-level field, not a Cognito user-pool attribute; username
+      uniqueness not enforced — both per the assumptions as planned.
+      Deliberately **not** reset by "Reset all progress" (new regression
+      test `test_reset_all_progress_does_not_clear_profile_identity`).
+- [x] `PATCH /profile` (`app/main.py`) — sets `username`/`avatar_key`
+      independently (`ProfileUpdate.model_fields_set` distinguishes
+      "omitted" from "sent null"), returns the updated `StatsOut`.
+      Validation lives in `schemas.py` field validators: username trimmed,
+      blank→`None`, max `USERNAME_MAX_LENGTH` (24) chars (422 if over);
+      `avatar_key` must be one of `app/profile.py`'s `AVATAR_KEYS` (422 if
+      not). `GET /stats` (`StatsOut`) also gained both fields. 10 new
+      backend tests (`test_profile.py`), 111 total passing.
+- [x] Preset avatar set — 12 emoji (fox/cat/dog/rabbit/owl/panda/koala/
+      lion/tiger/bear/monkey/penguin), `frontend/src/avatars.js`'s
+      `AVATARS` list mirrors backend `AVATAR_KEYS` exactly (kept in sync
+      by hand — no shared source across the Python/JS boundary). Picker is
+      a 6-column emoji grid on Settings, selecting saves immediately (no
+      separate Save step, unlike username).
+- [x] Change password — in-app form (current/new/confirm), `auth.js`'s new
+      `changePassword()` POSTs directly to Cognito's Identity Provider API
+      (`cognito-idp.<region>.amazonaws.com`, region parsed out of
+      `VITE_COGNITO_DOMAIN` rather than a new env var) with
+      `X-Amz-Target: AWSCognitoIdentityProviderService.ChangePassword` and
+      the current access token — same "raw fetch, no SDK" style as the
+      OAuth calls. Required a real (small) infra change: the access
+      token needs the `aws.cognito.signin.user.admin` OAuth scope, added
+      to both `login()`'s requested scope string and
+      `terraform/cognito.tf`'s `allowed_oauth_scopes` — **not yet
+      deployed** (needs `terraform apply` + a Lambda/frontend deploy,
+      holding off for a single confirmed deploy once more of this phase
+      cluster lands). Existing logged-in sessions will pick up the new
+      scope on their next login (access tokens already expire hourly).
+- [x] `AdminPage.jsx` → `SettingsPage.jsx` (old file deleted), nav
+      icon/label relabeled Admin → Settings in `App.jsx`. New "Profile"
+      card (avatar grid + username field/Save) and new "Change password"
+      card, both above the unchanged Appearance/Reset/Log out/Danger-zone
+      cards — five cards total now (`DESIGN.md` updated). `npm run build`
+      + `oxlint` clean; no dev server run per established preference (see
+      `CLAUDE.md`/memory — self-check only, visual confirmation is
+      yours). **Still needs deployment** (see change-password note above)
+      before it's testable live — `PATCH /profile`/avatar/username work
+      today without a redeploy being strictly required for *those* parts,
+      but change-password won't work until the Cognito scope change is
+      applied.
+
+## Phase 10 — Leveling system (XP + Level)
+No dependency on Phase 9. Needed before Phase 11 (lootboxes can reward
+XP, level-ups can grant a lootbox) and Phase 12 (Profile's XP bar).
+- [ ] `Stats` gains `xp` (int) and `level` (int, stored + recomputed on
+      every XP award rather than derived live on every read).
+- [ ] **Assumed** XP source: every action that currently earns coins also
+      earns equal XP (a Correct grade, the session-complete bonus,
+      achievement/quest coin rewards) — reuses the exact existing call
+      sites as a parallel counter, no new event wiring. Flag if you want
+      XP to follow a different curve than coins.
+- [ ] **Assumed** a level needs a concrete XP curve (e.g. level *N* needs
+      cumulative `100 * N` XP, or an escalating curve) — will propose
+      exact numbers when this phase starts unless you already have ones
+      in mind.
+- [ ] Level-up detection, same snapshot-then-reward two-phase pattern as
+      achievements/quests. A level-up is itself an acquisition trigger
+      for Phase 11's lootboxes.
+- [ ] Level-up celebration — reuses `CelebrationModal`, new
+      `kind: "level_up"`.
+
+## Phase 11 — Collection systems + Collection page (titles, themes, lootboxes)
+Depends on Phase 10 (XP as a lootbox reward, level-ups as an acquisition
+trigger). This is the "chests" feature flagged as unscoped back in Phase
+5 — titles/themes and lootboxes are built together since neither is
+meaningfully useful alone (a title you can never obtain isn't real; a
+lootbox with nothing in it isn't real).
+- [ ] Static `CollectibleDef`-style definitions (same code-not-database
+      pattern as `achievements.py`/`quests.py`) for **titles** (a display
+      string) and **card-colour/font themes** (a named theme + its CSS
+      token overrides).
+- [ ] `Stats` gains `owned_titles`/`owned_themes` (key lists),
+      `equipped_title`/`equipped_theme` (nullable keys), and a lootbox
+      inventory (**assumed** a count per tier — exact tier names/count
+      pinned down when this phase starts).
+- [ ] Lootbox tiers, each with a coin cost (**assumed** purchasable *and*
+      earnable free from level-ups/achievement milestones) and a
+      weighted-random reward table: coins, XP, an unowned title, an
+      unowned theme.
+- [ ] Endpoint to open one box from inventory (reward applied + inventory
+      decremented in one `transact_write_items` call, same pattern as
+      achievement/quest rewards) and an endpoint to equip a title/theme.
+- [ ] New **Collection** page/nav tab (bottom pill bar grows from 4 icons
+      to 5): browse owned + not-yet-owned titles/themes (locked ones
+      dimmed, same visual language as the achievement grid), equip one of
+      each, and a lootbox section to open boxes with a reveal animation.
+- [ ] **Assumed** scope for themes: the equipped theme re-tints
+      `FlipCard`'s surface/accent color (and swaps the display font, if
+      the theme includes one) app-wide — not a per-individual-card
+      color tag. Flag if you actually meant per-card colours instead.
+
+## Phase 12 — Profile page redesign (Progress → Profile)
+Assembles Phases 9-11 — do last in this cluster since it depends on all
+three.
+- [ ] `ProgressPage.jsx` → `ProfilePage.jsx`, nav relabeled Progress →
+      Profile.
+- [ ] New header above the existing stat strip: username + equipped title
+      (Phase 9/11), Level + XP progress bar (Phase 10).
+- [ ] Stat strip gains a 5th value: lootbox inventory count (Phase 11) —
+      **assumed** layout will need to adjust for 5 values on narrow
+      viewports; will confirm exact treatment when this phase starts.
+- [ ] Daily Quests box and Achievements grid carry over unchanged — no
+      behavior change, just now on the renamed page.
+
+## Phase 13 — Deck 2.0 (sub-decks, per-card labels, pre-built decks)
+No dependency on Phases 9-12 — could be built any time after Phase 8.
+- [ ] `Card` gains `label` (string, nullable). **Assumed** one label per
+      card (a sub-deck is "cards sharing a label"), not multiple tags per
+      card — flag if you want multi-tag instead.
+- [ ] Label editor on each Deck-list row (and optionally at card-creation
+      time); Deck page can filter/group by label — pure client-side
+      filtering over the already-fetched card list, no new endpoint.
+- [ ] Pre-built decks: a dev-authored key/value text file per deck,
+      committed to the repo (**assumed** `backend/app/prebuilt_decks/*.txt`,
+      one deck per file, simple `front<TAB>back` lines — exact format
+      pinned down when this phase starts), parsed at Lambda cold-start
+      into an in-memory list (same "static content in code" pattern as
+      achievements/quests, sourced from bundled text files instead of
+      Python literals — `build_lambda.sh` needs to include this
+      directory in the zip).
+- [ ] Read-only endpoints to list pre-built decks and fetch one's word
+      pairs — no `Cards` table involvement, per your "browse/practice
+      without owning" answer.
+
+## Phase 14 — Training 2.0 (Extra Training practice modes)
+Depends on Phase 13 (labels + pre-built-deck content to select from).
+- [ ] New "Extra Training" entry point on the Train page — pick a source:
+      all your cards, a subset by label, or a pre-built deck.
+- [ ] Practice sessions are **entirely schedule-free**, per your answer:
+      no `Card` mutation at all (no `interval_days`/`due_date`/
+      `times_correct`/`times_wrong` changes; pre-built-deck words have no
+      `Card` row to begin with). **Assumed**: this also means no
+      coins/streak/quest/achievement credit during practice, since that
+      machinery isn't Card-row-independent today — a practice session's
+      only feedback is a client-side end-of-round summary, never sent to
+      the backend. Flag if you actually want partial credit (e.g. still
+      earning coins) during practice.
+- [ ] Frontend-only queue logic reused from the existing Train
+      shuffle/requeue-on-Wrong pattern, pointed at a different card
+      source, skipping every grade-side-effect API call.
+
+## Phase 15 — Sound effects
+Deliberately near the end — decorates interactions introduced by every
+phase above (grade, flip, achievement/quest/level-up celebration,
+lootbox open).
+- [ ] Trigger points: card flip, Correct/Wrong grade, achievement/quest/
+      level-up celebration, lootbox open.
+- [ ] **Assumed** source: a small set of permissively-licensed (CC0) short
+      SFX files bundled in `frontend/public/sounds/`, played via plain
+      `Audio()` — no new npm dependency, same "small, no framework
+      wrapper" precedent as `canvas-confetti`. Specific sounds picked
+      when this phase starts.
+- [ ] Mute/volume control on the Settings page (Phase 9), persisted in
+      `localStorage` alongside the existing theme preference.
+
+## Phase 16 — Custom icons (nav bar + achievement families) — blocked
+- [ ] **Blocked on you supplying SVG artwork**, per your answer — stays a
+      backlog item, no active build work now. Nothing to do to keep the
+      eventual swap easy: nav icons and achievement badges are already
+      single, well-isolated points (`App.jsx`'s nav array,
+      `AchievementDef.badge`), so dropping in real SVGs later is a data
+      change, not a refactor.
+
+## Phase 17 — Future AI features (backlog, not started)
 - [ ] Pronunciation audio: research TTS options, add `audio_url` (or
       generate on demand) and a "play" button on the Train page.
       Tried browser Web Speech API first (free, zero backend) — reverted:

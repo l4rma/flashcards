@@ -34,8 +34,13 @@ resource "aws_cognito_user_pool_client" "spa" {
 
   allowed_oauth_flows                 = ["code"]
   allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_scopes                 = ["openid", "email", "profile"]
-  supported_identity_providers         = ["COGNITO"]
+  # aws.cognito.signin.user.admin lets the access token call Cognito's
+  # Identity Provider API directly (ChangePassword, UpdateUserAttributes,
+  # etc.) from the frontend with no backend involvement — see Settings'
+  # change-password action, which calls ChangePassword straight from
+  # auth.js the same way it already talks to the OAuth endpoints.
+  allowed_oauth_scopes         = ["openid", "email", "profile", "aws.cognito.signin.user.admin"]
+  supported_identity_providers = ["COGNITO"]
 
   callback_urls = concat(
     ["https://${aws_cloudfront_distribution.frontend.domain_name}/"],

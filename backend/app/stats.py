@@ -22,6 +22,8 @@ def _stats_to_item(stats: Stats) -> dict:
 
     return {
         "user_id": stats.user_id,
+        "username": stats.username,
+        "avatar_key": stats.avatar_key,
         "coins": stats.coins,
         "current_streak": stats.current_streak,
         "longest_streak": stats.longest_streak,
@@ -54,6 +56,8 @@ def _item_to_stats(item: dict) -> Stats:
 
     return Stats(
         user_id=item["user_id"],
+        username=item.get("username"),
+        avatar_key=item.get("avatar_key"),
         coins=int(item.get("coins", 0)),
         current_streak=int(item.get("current_streak", 0)),
         longest_streak=int(item.get("longest_streak", 0)),

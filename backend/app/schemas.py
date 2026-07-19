@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.profile import AVATAR_KEYS, USERNAME_MAX_LENGTH
 
 
 class Grade(str, Enum):
@@ -21,6 +23,35 @@ class CardUpdate(BaseModel):
 
 class GradeRequest(BaseModel):
     grade: Grade
+
+
+class ProfileUpdate(BaseModel):
+    """PATCH /profile body. Both fields optional/independently settable —
+    omit one to leave it unchanged, send null to clear it. No uniqueness
+    check on username (see SPEC.md Open decisions) — this is a
+    personal/small-multi-user app, not a public directory."""
+
+    username: str | None = None
+    avatar_key: str | None = None
+
+    @field_validator("username")
+    @classmethod
+    def _validate_username(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        if len(value) > USERNAME_MAX_LENGTH:
+            raise ValueError(f"Username must be at most {USERNAME_MAX_LENGTH} characters")
+        return value
+
+    @field_validator("avatar_key")
+    @classmethod
+    def _validate_avatar_key(cls, value: str | None) -> str | None:
+        if value is not None and value not in AVATAR_KEYS:
+            raise ValueError(f"Unknown avatar_key {value!r}")
+        return value
 
 
 class AchievementUnlockNotice(BaseModel):
@@ -67,6 +98,8 @@ class CardOut(BaseModel):
 class StatsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    username: str | None = None
+    avatar_key: str | None = None
     coins: int
     current_streak: int
     longest_streak: int

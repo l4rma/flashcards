@@ -3,16 +3,16 @@ import { getStats } from "./api";
 import { handleRedirectCallback, isAuthenticated, login } from "./auth";
 import CelebrationModal from "./components/CelebrationModal";
 import StatsBar from "./components/StatsBar";
-import AdminPage from "./pages/AdminPage";
 import DeckPage from "./pages/DeckPage";
 import ProgressPage from "./pages/ProgressPage";
+import SettingsPage from "./pages/SettingsPage";
 import TrainPage from "./pages/TrainPage";
 
 const TABS = [
   { key: "train", label: "Train", icon: "🏋️" },
   { key: "deck", label: "Deck", icon: "📚" },
   { key: "progress", label: "Progress", icon: "📈" },
-  { key: "admin", label: "Admin", icon: "⚙️" },
+  { key: "settings", label: "Settings", icon: "⚙️" },
 ];
 
 function App() {
@@ -114,7 +114,7 @@ function App() {
           />
         )}
         {tab === "progress" && <ProgressPage key={tab} />}
-        {tab === "admin" && <AdminPage key={tab} onChanged={refreshStats} />}
+        {tab === "settings" && <SettingsPage key={tab} onChanged={refreshStats} />}
       </main>
 
       <nav className="fixed bottom-0 inset-x-0 flex justify-center pb-safe pt-2 px-4 pointer-events-none">

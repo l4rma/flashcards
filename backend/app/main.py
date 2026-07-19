@@ -19,6 +19,7 @@ from app.schemas import (
     CardUpdate,
     Grade,
     GradeRequest,
+    ProfileUpdate,
     QuestCompletionNotice,
     QuestOut,
     StatsOut,
@@ -143,6 +144,23 @@ def grade_card(
 def read_stats(store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)):
     stats = stats_mod.get_or_create_stats(store, user_id)
     stats_mod.sync_day(store, user_id, stats, date.today())
+    stats_mod.save_stats(store, stats)
+    return StatsOut.model_validate(stats)
+
+
+@app.patch("/profile", response_model=StatsOut)
+def update_profile(
+    payload: ProfileUpdate, store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)
+):
+    """Sets username/avatar_key — both optional/independent (omit a field
+    to leave it unchanged). Profile identity lives on Stats (see
+    models.py) but isn't gamification progress, so it's untouched by
+    reset-all-progress."""
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    if "username" in payload.model_fields_set:
+        stats.username = payload.username
+    if "avatar_key" in payload.model_fields_set:
+        stats.avatar_key = payload.avatar_key
     stats_mod.save_stats(store, stats)
     return StatsOut.model_validate(stats)
 

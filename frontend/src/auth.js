@@ -47,7 +47,11 @@ export async function login() {
     response_type: "code",
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
-    scope: "openid email profile",
+    // aws.cognito.signin.user.admin lets the resulting access token call
+    // Cognito's Identity Provider API directly (see changePassword below)
+    // — needs matching allowed_oauth_scopes on the app client
+    // (terraform/cognito.tf).
+    scope: "openid email profile aws.cognito.signin.user.admin",
     code_challenge: challenge,
     code_challenge_method: "S256",
   });
@@ -102,4 +106,44 @@ export async function handleRedirectCallback() {
   url.searchParams.delete("state");
   window.history.replaceState({}, "", url.pathname + url.search);
   return true;
+}
+
+// Change password while logged in — calls Cognito's Identity Provider API
+// (a *different* endpoint from the Hosted UI domain above:
+// cognito-idp.<region>.amazonaws.com, the same regional AWS service
+// endpoint every Cognito SDK talks to) directly from the browser with the
+// current access token. No AWS credentials/signing needed — this specific
+// operation is authorized by the access token's
+// aws.cognito.signin.user.admin scope alone, the same "raw fetch, no SDK"
+// style as the OAuth calls above. Region is parsed out of
+// VITE_COGNITO_DOMAIN (…auth.<region>.amazoncognito.com) rather than
+// needing its own env var.
+export async function changePassword(previousPassword, newPassword) {
+  const match = COGNITO_DOMAIN.match(/\.auth\.([a-z0-9-]+)\.amazoncognito\.com/);
+  if (!match) {
+    throw new Error("Could not determine AWS region from VITE_COGNITO_DOMAIN");
+  }
+  const region = match[1];
+  const accessToken = getAccessToken();
+  if (!accessToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const res = await fetch(`https://cognito-idp.${region}.amazonaws.com/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-amz-json-1.1",
+      "X-Amz-Target": "AWSCognitoIdentityProviderService.ChangePassword",
+    },
+    body: JSON.stringify({
+      PreviousPassword: previousPassword,
+      ProposedPassword: newPassword,
+      AccessToken: accessToken,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || body.__type || `Change password failed: ${res.status}`);
+  }
 }

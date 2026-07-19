@@ -35,6 +35,11 @@ class Stats:
     to/from DynamoDB items."""
 
     user_id: str
+    # Profile identity — permanent user preferences, not gamification
+    # progress, so deliberately NOT touched by "reset all progress" (same
+    # reasoning as total_cards being spared).
+    username: str | None = None
+    avatar_key: str | None = None
     coins: int = 0
     current_streak: int = 0
     longest_streak: int = 0

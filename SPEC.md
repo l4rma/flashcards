@@ -496,9 +496,12 @@ lifecycle.
 
 ### API
 
-- `GET /stats` → `{ coins, current_streak, longest_streak, last_active_date,
-  session_initial_due }`. Also freezes `session_initial_due` for the day on
-  first call (see above).
+- `GET /stats` → `{ username, avatar_key, coins, current_streak,
+  longest_streak, last_active_date, session_initial_due }`. Also freezes
+  `session_initial_due` for the day on first call (see above).
+- `PATCH /profile` → `{ username?, avatar_key? }`, returns the updated
+  `StatsOut` (see Profile identity, below). Both fields optional and
+  independent; omit to leave unchanged, `null` to clear.
 - `POST /stats/session-complete` → applies the session-complete bonus,
   returns updated stats. Called once by the frontend exactly when grading a
   card empties the due queue (not on page load with an already-empty queue).
@@ -557,20 +560,58 @@ list of earlier tiers already unlocked in that family, each with its own
 unlock date/time. Standalone achievements and the "next tier" tile never
 show that section (nothing to list).
 
-### Admin page
+### Profile identity (username + avatar)
 
-A plain "Admin" tab — no streak/coins/due-count summary shown here (that's
-the Progress page's job; showing it twice was redundant):
+`Stats` gains `username`/`avatar_key` (both nullable strings) — permanent
+user preferences, not gamification progress, so **not** touched by
+"Reset all progress" (same reasoning as `total_cards`; see Rules and
+conventions in `CLAUDE.md`). `avatar_key` is a semantic key into a fixed
+preset list (`app/profile.py`'s `AVATAR_KEYS`), not a stored image —
+explicit choice over user-uploaded avatars, avoiding new S3/moderation
+infrastructure for a personal app (see Open decisions #12). The frontend
+(`avatars.js`) owns the key→emoji mapping so swapping these for real
+custom SVGs later (Phase 16, blocked on artwork) is a rendering change
+only. `PATCH /profile` sets either/both fields independently (omit a
+field to leave it unchanged, send `null` to clear it); no uniqueness
+check on username. Surfaced back to the frontend via the existing
+`GET /stats` response (`StatsOut` gained the same two fields) rather than
+a separate endpoint, since `Stats` already is the one-item-per-user blob.
+
+### Settings page
+
+A "Settings" tab (renamed from "Admin" — same page, same auth model, just
+better named now that it holds profile editing too, not just destructive
+actions). No streak/coins/due-count summary shown here (that's the
+Progress page's job; showing it twice was redundant):
+- **Profile** — username (text input + Save) and avatar (a grid of preset
+  emoji, click to select — saves immediately via `PATCH /profile`, no
+  separate Save step for the avatar).
 - **Appearance** — the Light/Auto/Dark theme toggle (`ThemeToggle.jsx`,
-  see `DESIGN.md`'s Dark theme section). The one non-destructive item
-  here; no confirm dialog.
+  see `DESIGN.md`'s Dark theme section). No confirm dialog.
+- **Change password** — current/new/confirm password fields, calls
+  Cognito's `ChangePassword` Identity Provider API **directly from the
+  frontend** (`auth.js`'s `changePassword`) with the current access
+  token — no new backend endpoint, no Lambda IAM permission. Same "raw
+  fetch to a Cognito endpoint, no SDK" style `auth.js` already uses for
+  the OAuth token exchange, just a different Cognito endpoint
+  (`cognito-idp.<region>.amazonaws.com`, not the Hosted UI domain).
+  Requires the app client to actually be allowed to use this API: the
+  access token needs the `aws.cognito.signin.user.admin` OAuth scope,
+  added to both `login()`'s requested scopes and the app client's
+  `allowed_oauth_scopes` in `terraform/cognito.tf` — a real (if small)
+  infrastructure change, since a scope isn't retroactive for
+  already-issued tokens (existing sessions need to log in again to pick
+  it up, which happens naturally within 60 minutes since access tokens
+  that short-lived already force frequent re-auth).
 - **Reset all progress** — the single full reset (`POST
   /reset-all-progress`, behind a confirm dialog): streak, coins, session
   baseline, every card's scheduling, all achievement unlocks, and all
   daily-quest completions. Previously this was split across
   four separate buttons (reset streak / reset coins / reset all stats /
   reset training progress); collapsed to one since the app doesn't need
-  that granularity in practice.
+  that granularity in practice. Does **not** touch profile identity (see
+  above).
+- **Log out**.
 - **Delete ALL cards** — separate "danger zone" (behind its own confirm
   dialog), most destructive action (actually removes card data, not just
   progress).
@@ -709,3 +750,30 @@ these you'd like changed:
     backend check in `cards.create_card`) if either of those assumptions
     stops holding — e.g. a bulk-import feature that bypasses the Deck
     page form.
+11. **Pre-built decks are non-owned, browsable practice content — not an
+    import-into-your-deck feature.** A dev commits a key/value text file
+    to the repo; the app parses it into a deck you can practice against
+    without it ever becoming a row in your own `Cards` table. Chosen over
+    "one-click bulk-import into your deck" specifically so pre-built
+    content never touches real spaced-repetition scheduling. See
+    `TASKS.md` Phase 13/14 for the resulting design (static content files
+    parsed at Lambda cold-start, same pattern as achievements/quests;
+    practice sessions against them are schedule-free).
+12. **Avatars are a preset icon set, not user-uploaded images.** No new
+    storage infrastructure, no moderation surface — same pattern as the
+    existing emoji/achievement-badge system. See `TASKS.md` Phase 9.
+13. **Custom SVG icons (nav bar + achievement families) are blocked on the
+    user supplying artwork**, not scheduled for active implementation.
+    Nav icons and achievement badges are already single, isolated data
+    points (`App.jsx`'s nav array, `AchievementDef.badge`), so the
+    eventual swap-in is mechanical once art exists. See `TASKS.md`
+    Phase 16.
+14. **Extra Training / practice sessions (all cards, a labeled subset, or
+    a pre-built deck) are entirely schedule-free.** Grading a card there
+    never touches `interval_days`/`due_date`/`times_correct`/
+    `times_wrong` — consistent with pre-built-deck words having no `Card`
+    row at all to mutate in the first place. Assumed (pending
+    confirmation) to also mean no coins/streak/quest/achievement credit
+    during practice, since that machinery isn't Card-row-independent
+    today; a practice round's only feedback is a client-side summary that
+    never reaches the backend. See `TASKS.md` Phase 14.

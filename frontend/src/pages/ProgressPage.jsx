@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getAchievements, getQuests, getStats, listCards } from "../api";
 import CoinIcon from "../components/CoinIcon";
 import ProgressBar from "../components/ProgressBar";
+import { trainedToday } from "../streak";
 
 function formatDateTime(iso) {
   return new Date(iso).toLocaleString();
@@ -52,7 +53,18 @@ export default function ProgressPage() {
       </h1>
 
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex items-start justify-between">
-        <Stat icon="🔥" value={stats.current_streak} label={`best ${stats.longest_streak}`} />
+        <Stat
+          icon={
+            <span
+              className={trainedToday(stats) ? "" : "grayscale opacity-40"}
+              title={trainedToday(stats) ? "Trained today" : "Not trained yet today"}
+            >
+              🔥
+            </span>
+          }
+          value={stats.current_streak}
+          label={`best ${stats.longest_streak}`}
+        />
         <Stat icon={<CoinIcon className="w-5 h-5" />} value={stats.coins} label="coins" />
         <Stat icon="📚" value={cards.length} label="cards" />
         <Stat icon="🎯" value={accuracy === null ? "—" : `${accuracy}%`} label="accuracy" />

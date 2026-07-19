@@ -56,7 +56,7 @@ executed better," not a palette replacement:
 
 ## Dark theme
 
-Togglable (Light / Auto / Dark, `components/ThemeToggle.jsx` on the Admin
+Togglable (Light / Auto / Dark, `components/ThemeToggle.jsx` on the Settings
 page), persisted in `localStorage` and defaulting to "Auto" (follows
 `prefers-color-scheme`, stays live if the OS theme changes mid-session).
 A tiny inline script in `index.html` applies the `dark` class to `<html>`
@@ -88,7 +88,7 @@ minority hover-darken usages lighten on hover instead, which reads fine.
 **Plain `shadow-md`/`shadow-lg` alone stopped being enough for card
 edges once the background went dark** — Tailwind's default shadow color
 is a fixed near-black, which is nearly invisible against an
-already-dark surface (confirmed by screenshot: the Admin danger-zone card,
+already-dark surface (confirmed by screenshot: the Settings danger-zone card,
 which already had a `ring`, read with a clear boundary in dark mode while
 every plain `bg-surface` card didn't). Fixed by adding `ring-1
 ring-ink/10` to every surface card — since `ink` itself flips between dark
@@ -101,7 +101,7 @@ needed.
 
 **Moved to a floating pill bar fixed to the bottom of the viewport**
 (user request, thinking mobile-first) — icon-only, same emoji-badge icon
-language as before (🏋️ Train, 📚 Deck, 📈 Progress, ⚙️ Admin), each with an
+language as before (🏋️ Train, 📚 Deck, 📈 Progress, ⚙️ Settings), each with an
 `aria-label`/`title` for accessibility. Deliberately kept **universal
 across all viewport widths, not just mobile** — this app already commits
 to a single narrow centered column even on desktop (see Layout, below),
@@ -141,14 +141,19 @@ small plain text — it's real content now (today's numbers), not a caption.
   four lines of plain text in a paragraph — the single biggest layout fix
   from the original version, which put nearly everything in a stack of
   identical white boxes with no hierarchy between them.
-- Admin page originally consolidated from three separate elevated cards
-  down to two (settings grouped together, danger zone kept visually
-  separate via a coral-tinted surface) — three cards for four short
-  buttons read as noise, not hierarchy. Back up to three since the theme
-  toggle was added as its own "Appearance" card above settings — a
-  deliberate exception, since a toggle is a different kind of control than
-  a row of buttons and reads better with its own space, not folded into
-  the settings card.
+- Admin page (renamed **Settings**) originally consolidated from three
+  separate elevated cards down to two (settings grouped together, danger
+  zone kept visually separate via a coral-tinted surface) — three cards
+  for four short buttons read as noise, not hierarchy. Back up to three
+  since the theme toggle was added as its own "Appearance" card above
+  settings — a deliberate exception, since a toggle is a different kind of
+  control than a row of buttons and reads better with its own space, not
+  folded into the settings card. Grew to **five** cards with profile
+  identity + change password (Profile, Appearance, Change password,
+  Reset/Log out, Danger zone) — each stays its own card rather than being
+  folded together, same reasoning as the Appearance exception: an avatar
+  grid, a username field, and a 3-field password form are each a distinct
+  kind of control, not more rows in the same button stack.
 
 ## Interaction
 
