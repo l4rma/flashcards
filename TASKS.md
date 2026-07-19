@@ -313,6 +313,21 @@ design these tasks implement.
       want to create a bigger deck"), not a bug to guard against. Reset by
       "Reset all progress" back to 5. 6 new/updated backend tests (103→106
       total), deployed (Lambda code update only, no infra change).
+- [x] **Reverted**: Daily Training's target is now a flat, always-10
+      `TRAIN_TARGET` constant, per explicit request — no longer adaptive to
+      `session_initial_due`, no more growing floor. `Stats.quest_train_floor`
+      and `app/quests.py`'s `TRAIN_FLOOR_START`/`_GROWTH`/`_MAX` removed
+      entirely (DynamoDB needs no migration for the drop — old items just
+      keep the now-unread attribute). Description text changed to
+      "Practice 10 cards in Train." Accepted trade-off, reversing the
+      previous fix's whole point: this quest can now go uncompleted on a
+      day with fewer than 10 cards due — deliberate, not a regression.
+      Frontend-only change otherwise (the Train page's progress bar reads
+      the same `GET /quests` data, so it picks up the flat 10
+      automatically, no `TrainPage.jsx` edit needed). Removed the
+      floor-growth tests in `test_stats.py` (they tested a mechanism that
+      no longer exists) and updated the affected `test_quests.py`/
+      `test_api.py` assertions — 101 backend tests pass.
 - [x] Achievement-unlock celebration — confetti (`canvas-confetti`, new
       frontend dependency, ~3KB) + a modal ("Grats! You earned an
       achievement!", badge, title, description, coin reward) whenever an

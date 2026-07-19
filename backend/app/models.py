@@ -73,10 +73,6 @@ class Stats:
     quest_date: date | None = None
     quest_cards_added_today: int = 0
     quest_correct_today: int = 0
-    # Floor for the daily_train quest's target, growing +5/day (capped) so
-    # an empty/small deck doesn't trivially satisfy the quest at 0 — see
-    # quests.py's TRAIN_FLOOR_* constants.
-    quest_train_floor: int = 5
     # Running counters backing the deck-size / lifetime-correct / lifetime-
     # wrong achievement families — incremented at the same call sites as
     # the other counters above (POST /cards, a Correct/Wrong grade) rather

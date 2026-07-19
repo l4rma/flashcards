@@ -8,17 +8,14 @@ from app.database import QUEST_COMPLETIONS_TABLE, STATS_TABLE, Store, serialize_
 from app.models import Stats
 
 ADD_CARDS_TARGET = 5
-TRAIN_CORRECT_CAP = 10
-# daily_train's target floor — a small/empty deck would otherwise give a
-# trivial (or 0) target, so it starts at TRAIN_FLOOR_START and grows +5/day
-# (Stats.sync_day) up to TRAIN_FLOOR_MAX, deliberately outgrowing a small
-# deck's natural due count to nudge the user toward building a bigger one.
-# TRAIN_FLOOR_START must match Stats.quest_train_floor's dataclass default
-# in models.py (can't import it from there — models.py has no reverse
-# dependency on this module, and it shouldn't gain one just for this).
-TRAIN_FLOOR_START = 5
-TRAIN_FLOOR_GROWTH = 5
-TRAIN_FLOOR_MAX = 50
+# Always exactly 10, regardless of how many cards are due today — a
+# deliberate choice, not an oversight: an earlier version capped this at
+# min(10, session_initial_due) (plus a growing floor) so the quest was
+# never unreachable on a light due-count day, but that made the target
+# wobble day to day. Reverted to a flat, predictable "practice 10 cards"
+# per explicit request — accepted trade-off: on a day with fewer than 10
+# cards due, this quest can go uncompleted until more cards are due.
+TRAIN_TARGET = 10
 
 
 @dataclass(frozen=True)
@@ -45,9 +42,9 @@ DAILY_QUESTS: list[QuestDef] = [
     QuestDef(
         "daily_train",
         "Daily Training",
-        "Mark cards correct in Train.",
+        "Practice 10 cards in Train.",
         "🎯",
-        lambda stats: max(stats.quest_train_floor, min(TRAIN_CORRECT_CAP, stats.session_initial_due)),
+        lambda stats: TRAIN_TARGET,
         lambda stats: stats.quest_correct_today,
     ),
 ]

@@ -260,11 +260,10 @@ locally-computed fraction of the full due queue. The bar reads
 `progress_current`/`progress_target` straight off `GET /quests`' `daily_train`
 entry (`percent = progress_current / progress_target`), the same data the
 Progress page's Daily Quests box renders, refetched after every grade. This
-means the bar counts down from `max(quest_train_floor, min(10,
-session_initial_due))`, not from the full due count — the two bars are
-guaranteed identical since they're driven by the same backend values, not
-two separate calculations. `quest_train_floor` (see Daily quests, below)
-means this is never 0 even on a day with no cards due.
+means the bar counts down from a flat 10 (`TRAIN_TARGET`, see Daily
+quests, below), not from the full due count — the two bars are guaranteed
+identical since they're driven by the same backend values, not two
+separate calculations.
 
 This replaced an earlier version that computed
 `percent = (initialDueCount - currentQueueLength) / initialDueCount`
@@ -381,45 +380,45 @@ change, since each quest is just an entry in `DAILY_QUESTS`:
 | Badge | Title | Target |
 |---|---|---|
 | 📚 | Deck Builder | Add 5 cards today |
-| 🎯 | Daily Training | Get 10 cards correct today, or `session_initial_due` if fewer than 10 cards are due — never less than a growing floor (see below) |
+| 🎯 | Daily Training | Get 10 cards correct today — always 10, not adaptive (see below) |
 
 (Target column above documents the mechanic; the actual `description` shown
 in the UI is deliberately much shorter — "Add 5 cards today." /
-"Mark cards correct in Train." — the numeric target/progress is already
+"Practice 10 cards in Train." — the numeric target/progress is already
 visible via the progress bar's "X/Y", so the description doesn't need to
 restate it.)
 
-**Daily Training's target is `max(quest_train_floor, min(10,
-session_initial_due))`**, deliberately the same daily-frozen baseline that
-drives the Train page's own progress bar (see Session progress bar, above)
-— not a fixed "get 10 correct" that could be unreachable on a light day
-(once a card is due and gets a Correct grade it leaves the queue, so with
-only 1-2 cards due there'd be no way to rack up 10 corrects no matter how
-well you train) and not the earlier design of "complete today's session"
-(a boolean, replaced because the user wanted a numeric countdown matching
-the Train page bar instead). Progress is `quest_correct_today`, a `Stats`
-counter incremented on every Correct grade — so both bars count down from
-the same number and reach 100% at the same moment.
+**Daily Training's target is a flat constant, `TRAIN_TARGET` (10)** —
+`target` is still typed `Callable[[Stats], int]` (so a future quest could
+still be adaptive) but this one ignores its `Stats` argument entirely.
+Progress is `quest_correct_today`, a `Stats` counter incremented on every
+Correct grade, and the Train page's own progress bar reads this exact
+`daily_train` quest data (see Session progress bar, above) — so both bars
+count down from the same number and reach 100% at the same moment.
 
-**`quest_train_floor`** (`Stats` field, `app/quests.py`'s `TRAIN_FLOOR_*`
-constants) exists because an empty/small deck would otherwise give a
-trivial (or literally 0) target — reported by the user as "the daily quest
-will be to review 0 cards" when nothing was due. It starts at
-`TRAIN_FLOOR_START` (5) and grows by `TRAIN_FLOOR_GROWTH` (5) on every new
-calendar day (`Stats.sync_day`, skipping the very first day so a brand new
-user starts at 5, not 10), capped at `TRAIN_FLOOR_MAX` (50). This is a
-deliberate, acknowledged trade-off — once the floor exceeds what a small
-deck can supply, the quest becomes genuinely uncompletable until the deck
-grows, which is the intended nudge, not a bug. Reset by "Reset all
-progress" back to `TRAIN_FLOOR_START`, same as the rest of `Stats`.
+This is the **second** design for this quest's target, not the first.
+Originally it was a boolean "complete today's session," then changed to
+`max(quest_train_floor, min(10, session_initial_due))` — a countdown
+capped at whatever's actually due (plus a floor that grew over time) so
+the quest was never unreachable on a light due-count day, since a card
+leaves the due queue for the day once graded Correct. **Reverted to a
+flat 10 per explicit request** — the adaptive target made day-to-day
+difficulty unpredictable, and a flat, always-the-same "practice 10 cards"
+was judged more valuable than guaranteed reachability. Accepted trade-off:
+on a day with fewer than 10 cards due, this quest can go uncompleted
+until more cards are due or added — that's intended, not a bug to fix.
+`quest_train_floor` and the `TRAIN_FLOOR_*` constants from the earlier
+design were removed entirely (not just unused) since nothing reads them
+any more.
 
 Progress resets once per calendar day: `Stats.sync_day` checks
 `Stats.quest_date` and resets `quest_cards_added_today`/
-`quest_correct_today` on rollover (also growing `quest_train_floor`, see
-above). It also recomputes today's due count in the same call, so
-`session_initial_due` — and therefore the Daily Training target — is
-correctly frozen for the day regardless of whether the Train page, the
-Progress page, or neither has been opened yet today. Both quests' progress
+`quest_correct_today` on rollover. It also recomputes today's due count in
+the same call, so `session_initial_due` (used for the Train page's "N
+cards left to review" count and the Marathon achievement, but no longer
+for the Daily Training target) is correctly frozen for the day regardless
+of whether the Train page, the Progress page, or neither has been opened
+yet today. Both quests' progress
 is a `Stats` counter incremented only by the actual action that should
 count (`record_quest_card_added` from `POST /cards`,
 `record_quest_correct_grade` from `POST /cards/{id}/grade` on a Correct
@@ -645,12 +644,15 @@ these you'd like changed:
    "Daily Training" are the same every day — designed so a future
    rotating/random selection is just a change to `DAILY_QUESTS` in
    `app/quests.py`, not a data-model change (see Daily quests, above). The
-   training quest's target went through two iterations: first "complete
+   training quest's target went through three iterations: first "complete
    today's session" (a boolean, to avoid a light-due-day making a fixed "N
-   correct today" unreachable), then changed to `min(10, session_initial_due)`
-   — a numeric countdown, matching the Train page's own progress bar
-   exactly, while keeping the same "never unreachable on a light day"
-   property since it caps at whatever's actually due.
+   correct today" unreachable), then `max(quest_train_floor, min(10,
+   session_initial_due))` — a numeric countdown, matching the Train page's
+   own progress bar exactly, while keeping the same "never unreachable on
+   a light day" property since it capped at whatever's actually due — then
+   simplified to a flat, always-10 `TRAIN_TARGET` per explicit request
+   (see Daily quests, above), trading that reachability guarantee for a
+   predictable, unchanging target.
 8. **Early Bird / Night Owl time windows don't overlap, and Night Owl spans
    midnight.** Originally Early Bird was "any hour before 7am" and Night
    Owl was "hour ≥ 23" — meaning training right after midnight (e.g.

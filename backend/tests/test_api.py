@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from app.quests import TRAIN_FLOOR_START
+from app.quests import TRAIN_TARGET
 
 
 def test_create_and_list_card(client):
@@ -59,11 +59,9 @@ def test_create_card_reports_newly_completed_quests(client):
 
 
 def test_grade_card_reports_newly_completed_quests(client):
-    # Below TRAIN_FLOOR_START cards due, the train quest's target floors at
-    # TRAIN_FLOOR_START rather than the (smaller) actual due count.
     cards = [
         client.post("/cards", json={"french": f"mot{i}", "english": f"word{i}"}).json()
-        for i in range(TRAIN_FLOOR_START)
+        for i in range(TRAIN_TARGET)
     ]
     for card in cards[:-1]:
         client.post(f"/cards/{card['id']}/grade", json={"grade": "correct"})
@@ -159,14 +157,13 @@ def test_quests_endpoint_reflects_activity(client):
 
 
 def test_grading_correct_progresses_the_train_quest(client):
-    # Below TRAIN_FLOOR_START cards due, so the quest's target floors at
-    # TRAIN_FLOOR_START (not the actual due count) — same countdown as the
-    # Train page's own progress bar.
+    # Target is fixed at TRAIN_TARGET regardless of how few cards are due
+    # — same countdown as the Train page's own progress bar.
     card = client.post("/cards", json={"french": "chat", "english": "cat"}).json()
     client.post(f"/cards/{card['id']}/grade", json={"grade": "correct"})
 
     quests = {q["key"]: q for q in client.get("/quests").json()}
-    assert quests["daily_train"]["progress_target"] == TRAIN_FLOOR_START
+    assert quests["daily_train"]["progress_target"] == TRAIN_TARGET
     assert quests["daily_train"]["progress_current"] == 1
     assert quests["daily_train"]["completed"] is False
 
@@ -174,7 +171,7 @@ def test_grading_correct_progresses_the_train_quest(client):
 def test_reset_progress_also_clears_quest_completions(client):
     cards = [
         client.post("/cards", json={"french": f"mot{i}", "english": f"word{i}"}).json()
-        for i in range(TRAIN_FLOOR_START)
+        for i in range(TRAIN_TARGET)
     ]
     for card in cards:
         client.post(f"/cards/{card['id']}/grade", json={"grade": "correct"})

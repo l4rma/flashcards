@@ -3,7 +3,6 @@ from datetime import date, datetime, timedelta
 from app.cards import count_due
 from app.database import Store
 from app.models import Stats
-from app.quests import TRAIN_FLOOR_GROWTH, TRAIN_FLOOR_MAX, TRAIN_FLOOR_START
 from app.schemas import Grade
 
 COINS_PER_CORRECT = 1
@@ -43,7 +42,6 @@ def _stats_to_item(stats: Stats) -> dict:
         "quest_date": _d(stats.quest_date),
         "quest_cards_added_today": stats.quest_cards_added_today,
         "quest_correct_today": stats.quest_correct_today,
-        "quest_train_floor": stats.quest_train_floor,
         "total_cards": stats.total_cards,
         "total_correct": stats.total_correct,
         "total_wrong": stats.total_wrong,
@@ -76,7 +74,6 @@ def _item_to_stats(item: dict) -> Stats:
         quest_date=_d(item.get("quest_date")),
         quest_cards_added_today=int(item.get("quest_cards_added_today", 0)),
         quest_correct_today=int(item.get("quest_correct_today", 0)),
-        quest_train_floor=int(item.get("quest_train_floor", 5)),
         total_cards=int(item.get("total_cards", 0)),
         total_correct=int(item.get("total_correct", 0)),
         total_wrong=int(item.get("total_wrong", 0)),
@@ -115,12 +112,6 @@ def sync_day(store: Store, user_id: str, stats: Stats, today: date | None = None
         stats.session_initial_due = due_count_today
         stats.session_had_wrong = False
     if stats.quest_date != today:
-        # Grows the daily_train quest's floor on every new day *after* the
-        # first ever (quest_date starts None, so day one keeps the
-        # dataclass default instead of growing past it) — see quests.py's
-        # TRAIN_FLOOR_* constants for why this exists.
-        if stats.quest_date is not None:
-            stats.quest_train_floor = min(TRAIN_FLOOR_MAX, stats.quest_train_floor + TRAIN_FLOOR_GROWTH)
         stats.quest_date = today
         stats.quest_cards_added_today = 0
         stats.quest_correct_today = 0
@@ -214,7 +205,6 @@ def reset_all_stats(stats: Stats) -> Stats:
     stats.quest_date = None
     stats.quest_cards_added_today = 0
     stats.quest_correct_today = 0
-    stats.quest_train_floor = TRAIN_FLOOR_START
     stats.total_correct = 0
     stats.total_wrong = 0
     return stats

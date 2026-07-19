@@ -6,8 +6,7 @@ from app.cards import create_card
 from app.models import Stats
 from app.quests import (
     ADD_CARDS_TARGET,
-    TRAIN_CORRECT_CAP,
-    TRAIN_FLOOR_START,
+    TRAIN_TARGET,
     check_and_complete_quests,
     clear_quest_completions,
     list_quests,
@@ -68,35 +67,37 @@ def test_bulk_inserted_cards_do_not_count_toward_add_cards_quest(store):
     assert quests["daily_add_cards"]["completed"] is False
 
 
-def test_train_quest_target_caps_at_ten_when_more_cards_are_due(store):
+def test_train_quest_target_is_fixed_at_ten_when_more_cards_are_due(store):
     stats = make_stats()
     for i in range(15):
         create_card(store, TEST_USER_ID, f"mot{i}", f"word{i}", today=TODAY)
     sync_day(store, TEST_USER_ID, stats, today=TODAY)
 
     quests = {q["key"]: q for q in list_quests(store, TEST_USER_ID, stats, today=TODAY)}
-    assert quests["daily_train"]["progress_target"] == TRAIN_CORRECT_CAP
+    assert quests["daily_train"]["progress_target"] == TRAIN_TARGET
 
 
-def test_train_quest_target_matches_due_count_when_between_floor_and_cap(store):
+def test_train_quest_target_is_fixed_at_ten_when_fewer_cards_are_due(store):
     stats = make_stats()
     for i in range(7):
         create_card(store, TEST_USER_ID, f"mot{i}", f"word{i}", today=TODAY)
     sync_day(store, TEST_USER_ID, stats, today=TODAY)
 
     quests = {q["key"]: q for q in list_quests(store, TEST_USER_ID, stats, today=TODAY)}
-    assert quests["daily_train"]["progress_target"] == 7
+    assert quests["daily_train"]["progress_target"] == TRAIN_TARGET
 
 
-def test_train_quest_target_defaults_to_floor_when_no_cards_due(store):
-    # Regression test: an empty/small deck used to give a target of 0
-    # (trivially "complete"). It should default to the starting floor
-    # instead, so the quest still asks for something meaningful.
+def test_train_quest_target_is_fixed_at_ten_when_no_cards_due(store):
+    # Deliberately not adaptive any more — always exactly TRAIN_TARGET,
+    # even on a day with nothing due, meaning the quest can go
+    # uncompletable until more cards are due. See quests.py's TRAIN_TARGET
+    # comment for why this trade-off was chosen over the earlier
+    # adaptive/floor behavior.
     stats = make_stats()
     sync_day(store, TEST_USER_ID, stats, today=TODAY)
 
     quests = {q["key"]: q for q in list_quests(store, TEST_USER_ID, stats, today=TODAY)}
-    assert quests["daily_train"]["progress_target"] == TRAIN_FLOOR_START
+    assert quests["daily_train"]["progress_target"] == TRAIN_TARGET
 
 
 def test_train_quest_progress_tracks_correct_grades(store):
@@ -110,16 +111,16 @@ def test_train_quest_progress_tracks_correct_grades(store):
 
     quests = {q["key"]: q for q in list_quests(store, TEST_USER_ID, stats, today=TODAY)}
     assert quests["daily_train"]["progress_current"] == 4
-    assert quests["daily_train"]["progress_target"] == TRAIN_CORRECT_CAP
+    assert quests["daily_train"]["progress_target"] == TRAIN_TARGET
 
 
-def test_train_quest_completes_when_correct_reaches_capped_target(store):
+def test_train_quest_completes_when_correct_reaches_target(store):
     stats = make_stats()
-    for i in range(TRAIN_FLOOR_START):
+    for i in range(TRAIN_TARGET):
         create_card(store, TEST_USER_ID, f"mot{i}", f"word{i}", today=TODAY)
     sync_day(store, TEST_USER_ID, stats, today=TODAY)
 
-    for _ in range(TRAIN_FLOOR_START):
+    for _ in range(TRAIN_TARGET):
         record_quest_correct_grade(stats)
 
     completed = check_and_complete_quests(store, TEST_USER_ID, stats, today=TODAY)

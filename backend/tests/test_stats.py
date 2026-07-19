@@ -2,7 +2,6 @@ from datetime import date, datetime, timedelta
 
 from app.models import Stats
 from app.schemas import Grade
-from app.quests import TRAIN_FLOOR_MAX, TRAIN_FLOOR_START
 from app.stats import (
     award_session_complete,
     record_card_mastered,
@@ -269,59 +268,6 @@ def test_sync_day_resets_on_a_new_day(store):
 
     assert stats.session_initial_due == 0  # no cards due for this fresh user
     assert stats.session_date == yesterday + timedelta(days=1)
-
-
-def test_sync_day_does_not_grow_train_floor_on_first_ever_check_in(store):
-    stats = make_stats()
-
-    sync_day(store, TEST_USER_ID, stats, today=date(2026, 1, 10))
-
-    assert stats.quest_train_floor == TRAIN_FLOOR_START
-
-
-def test_sync_day_grows_train_floor_by_five_each_subsequent_day(store):
-    stats = make_stats()
-    day = date(2026, 1, 10)
-    sync_day(store, TEST_USER_ID, stats, today=day)  # day one — no growth
-
-    day += timedelta(days=1)
-    sync_day(store, TEST_USER_ID, stats, today=day)
-    assert stats.quest_train_floor == TRAIN_FLOOR_START + 5
-
-    day += timedelta(days=1)
-    sync_day(store, TEST_USER_ID, stats, today=day)
-    assert stats.quest_train_floor == TRAIN_FLOOR_START + 10
-
-
-def test_sync_day_caps_train_floor_growth(store):
-    stats = make_stats()
-    day = date(2026, 1, 10)
-    for _ in range(30):  # far more days than needed to hit the cap
-        sync_day(store, TEST_USER_ID, stats, today=day)
-        day += timedelta(days=1)
-
-    assert stats.quest_train_floor == TRAIN_FLOOR_MAX
-
-
-def test_sync_day_does_not_regrow_train_floor_within_the_same_day(store):
-    stats = make_stats()
-    day = date(2026, 1, 10)
-    sync_day(store, TEST_USER_ID, stats, today=day)
-    day += timedelta(days=1)
-    sync_day(store, TEST_USER_ID, stats, today=day)
-    grown = stats.quest_train_floor
-
-    sync_day(store, TEST_USER_ID, stats, today=day)  # repeat same day
-
-    assert stats.quest_train_floor == grown
-
-
-def test_reset_all_stats_resets_train_floor(store):
-    stats = make_stats(quest_train_floor=30)
-
-    reset_all_stats(stats)
-
-    assert stats.quest_train_floor == TRAIN_FLOOR_START
 
 
 def test_reset_all_stats_clears_everything():
