@@ -179,13 +179,21 @@ small plain text — it's real content now (today's numbers), not a caption.
   identical white boxes with no hierarchy between them. Grew a new avatar
   + username + equipped-title header above everything, and a Level/XP-bar
   card between that header and the stat strip, once Phases 9-11 gave the
-  page an actual identity to show; the stat strip itself grew a 5th value
-  (🎁 lootbox count) and switched from a single-row flex to a
-  `grid grid-cols-3` (wraps 3-then-2) — a viewport breakpoint would have
-  been the wrong tool, since this app's content column is capped narrow
-  regardless of device width (see Layout, below), so "responsive" here
-  means "wraps within a fixed-width card," not "changes at a screen-size
-  breakpoint."
+  page an actual identity to show; the stat strip briefly grew a 5th
+  value (🎁 lootbox count, wrapping 3-then-2 in a `grid-cols-3`) but
+  accuracy was later pulled back out per explicit request, landing back
+  at a clean 4-item single-row `grid-cols-4` (🔥/🪙/📚/🎁) — no wrap
+  needed since the item count matches the column count. Accuracy moved
+  into the new **Lifetime stats** box instead (see below), grouped with
+  the other running totals it conceptually belongs with rather than
+  standing alone as a flashy tile.
+- **Lifetime stats box** (new, directly under Daily Quests on the Profile
+  page): total cards, reviewed, learned, practiced, accuracy, mastered —
+  plain `label │ value` rows in a `grid-cols-2`, deliberately the one box
+  on this page using **no emoji/icons and no `font-display`** (Nunito
+  throughout) — a "keep it discrete" request, meant to read as a quieter
+  reference panel rather than another highlight competing with the
+  flashy icon-plus-Fraunces stat strip above it.
 - **Collection page** (new, Phase 11): a Lootboxes card (Buy/Open per
   tier, plain rows — no tilt, this is the app's own UI chrome, not a
   content list), then a Titles grid and a Card-colours grid, both reusing

@@ -19,6 +19,18 @@ function Stat({ icon, value, label }) {
   );
 }
 
+// Deliberately plain text, no icons/emoji and no font-display — quieter
+// than the Stat strip above by explicit request, so this reads as a
+// reference/detail box rather than another flashy highlight.
+function TextStat({ label, value }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-xs text-ink-soft">{label}</span>
+      <span className="text-sm font-semibold text-ink">{value}</span>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const [stats, setStats] = useState(null);
   const [cards, setCards] = useState(null);
@@ -47,6 +59,7 @@ export default function ProfilePage() {
   const totalWrong = cards.reduce((sum, c) => sum + c.times_wrong, 0);
   const totalGrades = totalCorrect + totalWrong;
   const accuracy = totalGrades > 0 ? Math.round((totalCorrect / totalGrades) * 100) : null;
+  const masteredCount = cards.filter((c) => c.mastered).length;
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
   const equippedTitle = collection.titles.find((t) => t.equipped);
   const totalLootboxes = collection.lootboxes.reduce((sum, b) => sum + b.count, 0);
@@ -81,7 +94,7 @@ export default function ProfilePage() {
         <ProgressBar percent={xpPercent} />
       </div>
 
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 grid grid-cols-3 gap-y-5 justify-items-center">
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 grid grid-cols-4 gap-y-5 justify-items-center">
         <Stat
           icon={
             <span
@@ -96,7 +109,6 @@ export default function ProfilePage() {
         />
         <Stat icon={<CoinIcon className="w-5 h-5" />} value={stats.coins} label="coins" />
         <Stat icon="📚" value={cards.length} label="cards" />
-        <Stat icon="🎯" value={accuracy === null ? "—" : `${accuracy}%`} label="accuracy" />
         <Stat icon="🎁" value={totalLootboxes} label="lootboxes" />
       </div>
 
@@ -130,6 +142,18 @@ export default function ProfilePage() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-soft">Lifetime stats</h2>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <TextStat label="Total cards" value={cards.length} />
+          <TextStat label="Reviewed" value={totalGrades} />
+          <TextStat label="Learned" value={totalCorrect} />
+          <TextStat label="Practiced" value={totalWrong} />
+          <TextStat label="Accuracy" value={accuracy === null ? "—" : `${accuracy}%`} />
+          <TextStat label="Mastered" value={masteredCount} />
+        </dl>
       </div>
 
       <div className="w-full max-w-sm">

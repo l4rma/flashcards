@@ -141,6 +141,44 @@ def check_and_complete_quests(store: Store, user_id: str, stats: Stats, today: d
     return [quest.key for quest in newly_completed]
 
 
+DAILY_QUEST_BONUS_LOOTBOX_TIER = "silver"
+
+
+def check_and_award_daily_bonus(store: Store, user_id: str, stats: Stats, today: date | None = None) -> bool:
+    """Grants one bonus lootbox the moment *every* daily quest is
+    completed for the day — separate from each quest's own coin reward
+    (already paid out by check_and_complete_quests), an extra reward for
+    clearing the whole board, not per quest. Gated by
+    Stats.daily_quest_bonus_awarded, reset alongside the rest of the
+    daily quest state in sync_day, so this can only fire once per
+    calendar day no matter how many times it's called that day. Must run
+    *after* check_and_complete_quests in the same request, so the
+    completion rows it reads already reflect anything that quest check
+    just completed.
+
+    Does its own small persist (a plain `update_item`, not a full
+    transaction) rather than relying on the caller's later `save_stats` —
+    same reasoning as leveling.finalize_level: `lootbox_silver` lives
+    conceptually in collection.py, touched directly here rather than
+    importing it, mirroring how achievements.py/quests.py's own reward
+    transactions already touch `xp` (owned by leveling.py) directly."""
+    today = today or date.today()
+    if stats.daily_quest_bonus_awarded:
+        return False
+    completed_today = _completed_today(store, user_id, today)
+    if not all(quest.key in completed_today for quest in DAILY_QUESTS):
+        return False
+
+    store.stats.update_item(
+        Key={"user_id": user_id},
+        UpdateExpression="SET daily_quest_bonus_awarded = :true ADD lootbox_silver :one",
+        ExpressionAttributeValues={":true": True, ":one": 1},
+    )
+    stats.daily_quest_bonus_awarded = True
+    stats.lootbox_silver += 1
+    return True
+
+
 def describe_quests(keys: list[str]) -> list[dict]:
     """Look up display info (title/description/badge/coin_reward) for a
     list of quest keys — used to build the completion-celebration popup

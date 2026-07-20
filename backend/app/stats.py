@@ -46,6 +46,7 @@ def _stats_to_item(stats: Stats) -> dict:
         "quest_date": _d(stats.quest_date),
         "quest_cards_added_today": stats.quest_cards_added_today,
         "quest_correct_today": stats.quest_correct_today,
+        "daily_quest_bonus_awarded": stats.daily_quest_bonus_awarded,
         "total_cards": stats.total_cards,
         "total_correct": stats.total_correct,
         "total_wrong": stats.total_wrong,
@@ -95,6 +96,7 @@ def _item_to_stats(item: dict) -> Stats:
         quest_date=_d(item.get("quest_date")),
         quest_cards_added_today=int(item.get("quest_cards_added_today", 0)),
         quest_correct_today=int(item.get("quest_correct_today", 0)),
+        daily_quest_bonus_awarded=bool(item.get("daily_quest_bonus_awarded", False)),
         total_cards=int(item.get("total_cards", 0)),
         total_correct=int(item.get("total_correct", 0)),
         total_wrong=int(item.get("total_wrong", 0)),
@@ -149,6 +151,7 @@ def sync_day(store: Store, user_id: str, stats: Stats, today: date | None = None
         stats.quest_date = today
         stats.quest_cards_added_today = 0
         stats.quest_correct_today = 0
+        stats.daily_quest_bonus_awarded = False
     return stats
 
 
@@ -243,6 +246,7 @@ def reset_all_stats(stats: Stats) -> Stats:
     stats.quest_date = None
     stats.quest_cards_added_today = 0
     stats.quest_correct_today = 0
+    stats.daily_quest_bonus_awarded = False
     stats.total_correct = 0
     stats.total_wrong = 0
     stats.owned_titles = []

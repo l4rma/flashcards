@@ -105,6 +105,16 @@ function App() {
     }
   }
 
+  function handleDailyBonusAwarded(newlyAwarded) {
+    if (newlyAwarded?.length) {
+      setCelebrationQueue((queue) => [
+        ...queue,
+        ...newlyAwarded.map((b) => ({ kind: "daily_bonus", ...b })),
+      ]);
+      refreshStats();
+    }
+  }
+
   if (authError) {
     return (
       <div className="text-center py-10 text-ink-soft">
@@ -137,6 +147,7 @@ function App() {
             onAchievementsUnlocked={handleAchievementsUnlocked}
             onQuestsCompleted={handleQuestsCompleted}
             onLeveledUp={handleLeveledUp}
+            onDailyBonusAwarded={handleDailyBonusAwarded}
           />
         )}
         {tab === "deck" && (
@@ -145,6 +156,7 @@ function App() {
             onAchievementsUnlocked={handleAchievementsUnlocked}
             onQuestsCompleted={handleQuestsCompleted}
             onLeveledUp={handleLeveledUp}
+            onDailyBonusAwarded={handleDailyBonusAwarded}
           />
         )}
         {tab === "profile" && <ProfilePage key={tab} />}

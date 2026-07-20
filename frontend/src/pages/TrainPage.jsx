@@ -17,7 +17,13 @@ function ExtraTrainingLink({ onClick }) {
   );
 }
 
-export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCompleted, onLeveledUp }) {
+export default function TrainPage({
+  onGraded,
+  onAchievementsUnlocked,
+  onQuestsCompleted,
+  onLeveledUp,
+  onDailyBonusAwarded,
+}) {
   const [queue, setQueue] = useState(null); // null while loading
   const [trainQuest, setTrainQuest] = useState(null);
   const [flipped, setFlipped] = useState(false);
@@ -111,6 +117,7 @@ export default function TrainPage({ onGraded, onAchievementsUnlocked, onQuestsCo
       onAchievementsUnlocked?.(updated.newly_unlocked_achievements);
       onQuestsCompleted?.(updated.newly_completed_quests);
       onLeveledUp?.(updated.newly_leveled_up);
+      onDailyBonusAwarded?.(updated.newly_awarded_daily_bonus);
       const rest = queue.slice(1);
       const newQueue = result === "wrong" ? [...rest, updated] : rest;
       setQueue(newQueue);

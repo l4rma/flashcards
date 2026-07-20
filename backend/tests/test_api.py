@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from app.quests import TRAIN_TARGET
+from app.quests import ADD_CARDS_TARGET, TRAIN_TARGET
 
 
 def test_create_and_list_card(client):
@@ -67,6 +67,43 @@ def test_grade_card_reports_newly_completed_quests(client):
         client.post(f"/cards/{card['id']}/grade", json={"grade": "correct"})
     graded = client.post(f"/cards/{cards[-1]['id']}/grade", json={"grade": "correct"}).json()
     assert "daily_train" in {q["key"] for q in graded["newly_completed_quests"]}
+
+
+def test_completing_every_daily_quest_awards_a_bonus_lootbox(client):
+    cards = [
+        client.post("/cards", json={"french": f"mot{i}", "english": f"word{i}"}).json()
+        for i in range(max(ADD_CARDS_TARGET, TRAIN_TARGET))
+    ]
+    # The add-cards quest completes as a side effect of creating the cards
+    # above; grading them all Correct completes the train quest last, so
+    # the bonus notice should land on the final grade call.
+    for card in cards[:-1]:
+        client.post(f"/cards/{card['id']}/grade", json={"grade": "correct"})
+    graded = client.post(f"/cards/{cards[-1]['id']}/grade", json={"grade": "correct"}).json()
+
+    bonus = graded["newly_awarded_daily_bonus"]
+    assert len(bonus) == 1
+    assert bonus[0]["lootbox_tier"] == "silver"
+    assert bonus[0]["title"]
+    assert bonus[0]["badge"]
+
+    collection = client.get("/collection").json()
+    silver = next(box for box in collection["lootboxes"] if box["tier"] == "silver")
+    assert silver["count"] == 1
+
+
+def test_daily_bonus_is_not_reported_again_the_same_day(client):
+    cards = [
+        client.post("/cards", json={"french": f"mot{i}", "english": f"word{i}"}).json()
+        for i in range(max(ADD_CARDS_TARGET, TRAIN_TARGET))
+    ]
+    for card in cards:
+        client.post(f"/cards/{card['id']}/grade", json={"grade": "correct"})
+
+    extra_card = client.post("/cards", json={"french": "chat", "english": "cat"}).json()
+    graded = client.post(f"/cards/{extra_card['id']}/grade", json={"grade": "correct"}).json()
+
+    assert graded["newly_awarded_daily_bonus"] == []
 
 
 def test_grade_correct_moves_card_out_of_due(client):

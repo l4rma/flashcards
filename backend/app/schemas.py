@@ -133,6 +133,20 @@ class QuestCompletionNotice(BaseModel):
     coin_reward: int
 
 
+class DailyQuestBonusNotice(BaseModel):
+    """Display info for the "completed every quest today" bonus — a
+    lootbox, not coins, so it doesn't share AchievementUnlockNotice/
+    QuestCompletionNotice/LevelUpNotice's exact shape (`coin_reward` is
+    swapped for `lootbox_tier`); CelebrationModal branches on whichever
+    field is present to decide what reward line to render."""
+
+    key: str
+    title: str
+    description: str
+    badge: str
+    lootbox_tier: str
+
+
 class CardOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -145,10 +159,12 @@ class CardOut(BaseModel):
     last_reviewed_at: datetime | None
     times_correct: int
     times_wrong: int
+    mastered: bool = False
     label: str | None = None
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_completed_quests: list[QuestCompletionNotice] = []
     newly_leveled_up: list[LevelUpNotice] = []
+    newly_awarded_daily_bonus: list[DailyQuestBonusNotice] = []
 
 
 class StatsOut(BaseModel):

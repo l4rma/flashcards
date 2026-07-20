@@ -21,6 +21,7 @@ from app.schemas import (
     CardOut,
     CardUpdate,
     CollectionOut,
+    DailyQuestBonusNotice,
     EquipRequest,
     Grade,
     GradeRequest,
@@ -57,6 +58,20 @@ def _unlock_notices(keys: list[str]) -> list[AchievementUnlockNotice]:
 
 def _quest_notices(keys: list[str]) -> list[QuestCompletionNotice]:
     return [QuestCompletionNotice(**notice) for notice in quests_mod.describe_quests(keys)]
+
+
+def _daily_quest_bonus_notice(awarded: bool) -> list[DailyQuestBonusNotice]:
+    if not awarded:
+        return []
+    return [
+        DailyQuestBonusNotice(
+            key="daily_quest_bonus",
+            title="Perfect day!",
+            description="Completed every daily quest today.",
+            badge="🎁",
+            lootbox_tier=quests_mod.DAILY_QUEST_BONUS_LOOTBOX_TIER,
+        )
+    ]
 
 
 def _finalize_level(store: Store, user_id: str, stats) -> list[LevelUpNotice]:
@@ -115,12 +130,14 @@ def create_card(
     newly_leveled_up = _finalize_level(store, user_id, stats)
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_completed_quests = quests_mod.check_and_complete_quests(store, user_id, stats, today)
+    daily_bonus_awarded = quests_mod.check_and_award_daily_bonus(store, user_id, stats, today)
     newly_leveled_up += _finalize_level(store, user_id, stats)
 
     result = CardOut.model_validate(card)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
     result.newly_completed_quests = _quest_notices(newly_completed_quests)
     result.newly_leveled_up = newly_leveled_up
+    result.newly_awarded_daily_bonus = _daily_quest_bonus_notice(daily_bonus_awarded)
     return result
 
 
@@ -202,12 +219,14 @@ def grade_card(
     newly_leveled_up = _finalize_level(store, user_id, stats)
     newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
     newly_completed_quests = quests_mod.check_and_complete_quests(store, user_id, stats, today)
+    daily_bonus_awarded = quests_mod.check_and_award_daily_bonus(store, user_id, stats, today)
     newly_leveled_up += _finalize_level(store, user_id, stats)
 
     result = CardOut.model_validate(card)
     result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
     result.newly_completed_quests = _quest_notices(newly_completed_quests)
     result.newly_leveled_up = newly_leveled_up
+    result.newly_awarded_daily_bonus = _daily_quest_bonus_notice(daily_bonus_awarded)
     return result
 
 

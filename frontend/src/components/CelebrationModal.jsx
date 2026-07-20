@@ -6,6 +6,7 @@ const HEADINGS = {
   achievement: "Grats! You earned an achievement!",
   quest: "Quest complete!",
   level_up: "Level up!",
+  daily_bonus: "Perfect day!",
 };
 
 export default function CelebrationModal({ celebration, onDismiss }) {
@@ -33,9 +34,15 @@ export default function CelebrationModal({ celebration, onDismiss }) {
         <span className="text-6xl">{celebration.badge}</span>
         <h3 className="font-display font-semibold text-2xl text-ink">{celebration.title}</h3>
         <p className="text-sm text-ink-soft">{celebration.description}</p>
-        <p className="text-sm font-bold text-primary-dark flex items-center justify-center gap-1.5">
-          <CoinIcon className="w-4 h-4" /> +{celebration.coin_reward} coins
-        </p>
+        {celebration.lootbox_tier ? (
+          <p className="text-sm font-bold text-primary-dark capitalize">
+            +1 {celebration.lootbox_tier} chest
+          </p>
+        ) : (
+          <p className="text-sm font-bold text-primary-dark flex items-center justify-center gap-1.5">
+            <CoinIcon className="w-4 h-4" /> +{celebration.coin_reward} coins
+          </p>
+        )}
         <button
           type="button"
           onClick={onDismiss}

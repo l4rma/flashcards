@@ -98,6 +98,11 @@ class Stats:
     quest_date: date | None = None
     quest_cards_added_today: int = 0
     quest_correct_today: int = 0
+    # Whether the "complete every quest today" bonus lootbox has already
+    # been granted today — gates it to once/day the same way a
+    # QuestCompletions row gates each individual quest's own coin reward.
+    # Reset alongside the rest of the daily quest state (see sync_day).
+    daily_quest_bonus_awarded: bool = False
     # Running counters backing the deck-size / lifetime-correct / lifetime-
     # wrong achievement families — incremented at the same call sites as
     # the other counters above (POST /cards, a Correct/Wrong grade) rather

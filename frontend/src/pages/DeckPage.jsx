@@ -28,7 +28,12 @@ function useDebounced(value, delayMs) {
   return debounced;
 }
 
-export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, onLeveledUp }) {
+export default function DeckPage({
+  onAchievementsUnlocked,
+  onQuestsCompleted,
+  onLeveledUp,
+  onDailyBonusAwarded,
+}) {
   const [english, setEnglish] = useState("");
   const [french, setFrench] = useState("");
   const [label, setLabel] = useState("");
@@ -93,6 +98,7 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
       onAchievementsUnlocked?.(created.newly_unlocked_achievements);
       onQuestsCompleted?.(created.newly_completed_quests);
       onLeveledUp?.(created.newly_leveled_up);
+      onDailyBonusAwarded?.(created.newly_awarded_daily_bonus);
       setEnglish("");
       setFrench("");
       setLabel("");

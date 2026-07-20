@@ -624,6 +624,25 @@ counters rather than a live card count.
 progress_current, progress_target, coin_reward }`, one entry per quest (no
 family-collapsing needed — there's no tiering, just today's fixed set).
 
+**"Perfect day" bonus lootbox.** Completing *every* quest in `DAILY_QUESTS`
+on the same calendar day awards one extra silver lootbox
+(`quests.check_and_award_daily_bonus`), on top of each quest's own coin
+reward — a bonus for clearing the whole board, not per quest. Gated by
+`Stats.daily_quest_bonus_awarded`, a one-time-per-day flag reset alongside
+`quest_date`/`quest_cards_added_today`/`quest_correct_today` in
+`sync_day` (and by `reset_all_stats`, same policy as every other
+gamification-progress field). Checked once, right after
+`check_and_complete_quests`, from both `POST /cards` and
+`POST /cards/{id}/grade` — it re-reads `QuestCompletions` for today rather
+than trusting the quest keys `check_and_complete_quests` just returned, so
+it still fires correctly regardless of which of the two quests happens to
+complete last. Reported to the frontend as `newly_awarded_daily_bonus` on
+`CardOut` — a `DailyQuestBonusNotice` (`key`/`title`/`description`/`badge`/
+`lootbox_tier`), deliberately not shaped like `AchievementUnlockNotice`/
+`QuestCompletionNotice`/`LevelUpNotice` (`lootbox_tier` instead of
+`coin_reward`, since the reward is a chest, not coins) — `CelebrationModal`
+branches on whichever field is present.
+
 ### Leveling (XP + Level)
 
 `Stats` gains `xp` (int, running total) and `level` (int, starts at 1) —
@@ -872,20 +891,31 @@ Then a new **Level card**: "Level *N*" and a purple `ProgressBar` reading
 fields, see Leveling above) — same "just render what the backend already
 computed" pattern as the Daily Quests bars below it.
 
-Then the streak/coins/card-count/accuracy summary (🔥/🪙/📚/🎯), now a
-**5-item** `grid grid-cols-3` (wraps 3-then-2) rather than a single-row
-flex, gaining a 🎁 lootbox-count stat (summed across all three tiers from
-`GET /collection`) — a plain viewport-width breakpoint (`sm:`) would have
-been the wrong tool here, since this app's content column is capped
-narrow (~384px) regardless of actual device width (see `DESIGN.md`
-Layout), so "make it responsive" has to mean "wraps within a
-fixed-width card," not "changes at a screen-size breakpoint that may
-never even apply to this column."
+Then the streak/coins/card-count/lootbox-count summary (🔥/🪙/📚/🎁), a
+**4-item** `grid grid-cols-4` — one row, no wrap needed since the item
+count matches the column count. Accuracy used to be a 5th tile here
+(🎯) but was pulled out entirely per explicit request, since it reads
+better grouped with the rest of the lifetime numbers in the plain-text
+box described below than as its own flashy tile.
 
 Then the existing **Daily Quests** box (one row per `GET /quests` entry
 — badge, title, description, a small purple progress bar reusing the
 Train page's `ProgressBar` component, "X/Y" progress, and the coin reward
-or a ✅ once completed), unchanged, and the achievement grid below — one tile per
+or a ✅ once completed), unchanged.
+
+Directly below Daily Quests, a **Lifetime stats** box: total cards,
+cards reviewed (`totalCorrect + totalWrong`), learned/correct, practiced/
+wrong, accuracy, and cards mastered (`CardOut.mastered`, summed
+client-side) — six `label │ value` rows in a `grid-cols-2`. Deliberately
+**plain text only, no emoji/icons/`CoinIcon`, and no `font-display`**
+(Nunito throughout, not Fraunces) per explicit request, so this box reads
+as a quieter reference/detail panel rather than another highlight —
+every other box on this page uses at least one icon or the display font
+for its numbers, this one intentionally uses neither. `TextStat` in
+`ProfilePage.jsx` is the (new, local-only) component backing these rows;
+it does not share `Stat`'s icon/font-display shape on purpose.
+
+Then the achievement grid below — one tile per
 `GET /achievements` entry (badge + title), unlocked ones full color, locked
 ones dimmed. For a tiered family with partial progress this means **two**
 tiles side by side: the highest tier completed (colored) and the next tier

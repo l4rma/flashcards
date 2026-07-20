@@ -7,13 +7,14 @@ from app.models import Stats
 from app.quests import (
     ADD_CARDS_TARGET,
     TRAIN_TARGET,
+    check_and_award_daily_bonus,
     check_and_complete_quests,
     clear_quest_completions,
     list_quests,
     record_quest_card_added,
     record_quest_correct_grade,
 )
-from app.stats import get_or_create_stats, sync_day
+from app.stats import get_or_create_stats, reset_all_stats, sync_day
 
 TODAY = date(2026, 7, 15)
 TEST_USER_ID = "test-user"
@@ -208,3 +209,73 @@ def test_sync_day_is_idempotent_within_the_same_day(store):
     sync_day(store, TEST_USER_ID, stats, today=TODAY)  # same-day re-entry must not reset progress
 
     assert stats.quest_correct_today == 1
+
+
+def _complete_all_quests(store, stats, today=TODAY):
+    for _ in range(ADD_CARDS_TARGET):
+        record_quest_card_added(stats)
+    for _ in range(TRAIN_TARGET):
+        record_quest_correct_grade(stats)
+    check_and_complete_quests(store, TEST_USER_ID, stats, today=today)
+
+
+def test_no_daily_bonus_when_only_some_quests_are_complete(store):
+    stats = make_stats()
+    for _ in range(ADD_CARDS_TARGET):
+        record_quest_card_added(stats)
+    check_and_complete_quests(store, TEST_USER_ID, stats, today=TODAY)
+
+    awarded = check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=TODAY)
+
+    assert awarded is False
+    assert stats.daily_quest_bonus_awarded is False
+    assert stats.lootbox_silver == 0
+
+
+def test_daily_bonus_awarded_once_every_quest_is_complete(store):
+    stats = make_stats()
+    _complete_all_quests(store, stats)
+
+    awarded = check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=TODAY)
+
+    assert awarded is True
+    assert stats.daily_quest_bonus_awarded is True
+    assert stats.lootbox_silver == 1
+
+
+def test_daily_bonus_is_not_re_awarded_the_same_day(store):
+    stats = make_stats()
+    _complete_all_quests(store, stats)
+    check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=TODAY)
+
+    awarded_again = check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=TODAY)
+
+    assert awarded_again is False
+    assert stats.lootbox_silver == 1
+
+
+def test_daily_bonus_resets_and_can_be_earned_again_on_a_new_day(store):
+    stats = make_stats()
+    _complete_all_quests(store, stats)
+    check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=TODAY)
+
+    tomorrow = TODAY + timedelta(days=1)
+    sync_day(store, TEST_USER_ID, stats, today=tomorrow)
+    assert stats.daily_quest_bonus_awarded is False
+
+    _complete_all_quests(store, stats, today=tomorrow)
+    awarded = check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=tomorrow)
+
+    assert awarded is True
+    assert stats.lootbox_silver == 2
+
+
+def test_reset_all_stats_clears_daily_bonus_flag(store):
+    stats = make_stats()
+    _complete_all_quests(store, stats)
+    check_and_award_daily_bonus(store, TEST_USER_ID, stats, today=TODAY)
+    assert stats.daily_quest_bonus_awarded is True
+
+    reset_all_stats(stats)
+
+    assert stats.daily_quest_bonus_awarded is False

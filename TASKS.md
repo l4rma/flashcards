@@ -1024,6 +1024,34 @@ User-reported, fixed together.
       patched. 186 backend tests passing. `npm run build` + `oxlint`
       clean.
 
+### Daily quest "perfect day" bonus + Profile page stat cleanup
+User-requested, fixed together.
+- [x] Completing **every** daily quest on the same day now awards one
+      bonus silver lootbox, on top of each quest's own coin reward —
+      `quests.check_and_award_daily_bonus`, gated by the new
+      `Stats.daily_quest_bonus_awarded` flag (reset in both `sync_day`
+      and `reset_all_stats`, same policy as the rest of the daily-quest
+      state). Checked from `POST /cards` and `POST /cards/{id}/grade`
+      right after `check_and_complete_quests`; reported as
+      `newly_awarded_daily_bonus` on `CardOut` (`DailyQuestBonusNotice` —
+      `lootbox_tier` instead of `coin_reward`, since the reward's a chest
+      not coins). `CelebrationModal` gained a `daily_bonus` heading and
+      branches on `lootbox_tier` vs `coin_reward` to render the right
+      reward line. 7 new backend tests (pure-logic idempotency/reset/
+      day-rollover cases in `test_quests.py`, plus two API-level tests in
+      `test_api.py`).
+- [x] Profile page: the streak/coins/cards/accuracy/lootboxes strip lost
+      **accuracy** and is now a single-row `grid-cols-4` (was a
+      wrapping 5-item `grid-cols-3`).
+- [x] Profile page: new **Lifetime stats** box directly under Daily
+      Quests — total cards, reviewed, learned (correct), practiced
+      (wrong), accuracy, and mastered, as plain `label │ value` rows,
+      deliberately **no emoji/icons and no `font-display`** (per explicit
+      "keep it discrete" request) — the one box on this page that doesn't
+      use the flashy Fraunces-numbers-plus-icon treatment everywhere
+      else. New `TextStat` component in `ProfilePage.jsx` backs it.
+- [x] 193 backend tests passing. `npm run build` + `oxlint` clean.
+
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every
 phase above (grade, flip, achievement/quest/level-up celebration,
