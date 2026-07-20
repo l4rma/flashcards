@@ -4,7 +4,7 @@ import { AVATARS } from "../avatars";
 import { changePassword, logout } from "../auth";
 import ThemeToggle from "../components/ThemeToggle";
 
-export default function SettingsPage({ onChanged }) {
+export default function SettingsPage({ onChanged, onAchievementsUnlocked, onLeveledUp }) {
   const [message, setMessage] = useState(null);
 
   const [username, setUsername] = useState("");
@@ -12,6 +12,7 @@ export default function SettingsPage({ onChanged }) {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileStatus, setProfileStatus] = useState(null);
 
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,10 +26,16 @@ export default function SettingsPage({ onChanged }) {
     });
   }, []);
 
+  function reportNotices(updated) {
+    onAchievementsUnlocked?.(updated.newly_unlocked_achievements);
+    onLeveledUp?.(updated.newly_leveled_up);
+  }
+
   async function handleSaveUsername(e) {
     e.preventDefault();
     try {
-      await updateProfile({ username: username.trim() || null });
+      const updated = await updateProfile({ username: username.trim() || null });
+      reportNotices(updated);
       setProfileStatus({ type: "success", message: "Username saved." });
       onChanged?.();
     } catch (err) {
@@ -40,12 +47,21 @@ export default function SettingsPage({ onChanged }) {
     const previous = avatarKey;
     setAvatarKey(key);
     try {
-      await updateProfile({ avatar_key: key });
+      const updated = await updateProfile({ avatar_key: key });
+      reportNotices(updated);
       onChanged?.();
     } catch (err) {
       setAvatarKey(previous);
       setProfileStatus({ type: "error", message: err.message });
     }
+  }
+
+  function closePasswordModal() {
+    setPasswordModalOpen(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordStatus(null);
   }
 
   async function handleChangePassword(e) {
@@ -56,10 +72,10 @@ export default function SettingsPage({ onChanged }) {
     }
     try {
       await changePassword(currentPassword, newPassword);
+      setPasswordStatus({ type: "success", message: "Password changed." });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setPasswordStatus({ type: "success", message: "Password changed." });
     } catch (err) {
       setPasswordStatus({ type: "error", message: err.message });
     }
@@ -151,68 +167,13 @@ export default function SettingsPage({ onChanged }) {
       </div>
 
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
-          Change password
-        </p>
-        <form onSubmit={handleChangePassword} className="flex flex-col gap-2">
-          <input
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            placeholder="Current password"
-            autoComplete="current-password"
-            className="rounded-2xl border border-primary/20 bg-background px-4 py-2.5 text-ink outline-none focus:ring-2 focus:ring-primary"
-          />
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="New password"
-            autoComplete="new-password"
-            className="rounded-2xl border border-primary/20 bg-background px-4 py-2.5 text-ink outline-none focus:ring-2 focus:ring-primary"
-          />
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Confirm new password"
-            autoComplete="new-password"
-            className="rounded-2xl border border-primary/20 bg-background px-4 py-2.5 text-ink outline-none focus:ring-2 focus:ring-primary"
-          />
-          <button
-            type="submit"
-            className="mt-1 rounded-full bg-primary-light hover:bg-primary/20 text-primary-dark font-bold py-2.5 transition"
-          >
-            Change password
-          </button>
-        </form>
-        {passwordStatus && (
-          <p
-            className={`text-sm font-semibold ${
-              passwordStatus.type === "success" ? "text-primary-dark" : "text-wrong-dark"
-            }`}
-          >
-            {passwordStatus.message}
-          </p>
-        )}
-      </div>
-
-      <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Account</p>
         <button
           type="button"
-          onClick={handleResetAllProgress}
-          className="rounded-full bg-progress-track hover:bg-progress/20 text-progress font-bold py-3 transition"
-        >
-          Reset all progress
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (window.confirm("Log out?")) logout();
-          }}
+          onClick={() => setPasswordModalOpen(true)}
           className="rounded-full bg-primary-light hover:bg-primary/20 text-primary-dark font-bold py-3 transition"
         >
-          Log out
+          Change password
         </button>
       </div>
 
@@ -222,12 +183,94 @@ export default function SettingsPage({ onChanged }) {
         <p className="text-xs font-bold uppercase tracking-wide text-wrong-dark">Danger zone</p>
         <button
           type="button"
+          onClick={handleResetAllProgress}
+          className="rounded-full bg-surface hover:bg-wrong/10 text-wrong-dark font-bold py-3 transition ring-1 ring-wrong/20"
+        >
+          Reset all progress
+        </button>
+        <button
+          type="button"
           onClick={handleDeleteAllCards}
           className="rounded-full bg-wrong hover:bg-wrong-dark active:scale-95 transition text-white font-bold py-3"
         >
           Delete ALL cards
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm("Log out?")) logout();
+        }}
+        className="rounded-full bg-primary-light hover:bg-primary/20 text-primary-dark font-bold px-8 py-3 transition"
+      >
+        Log out
+      </button>
+
+      {passwordModalOpen && (
+        <div
+          className="fixed inset-0 bg-ink/40 flex items-center justify-center px-4 z-20"
+          onClick={closePasswordModal}
+        >
+          <div
+            className="bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 max-w-xs w-full flex flex-col gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-display font-semibold text-lg text-ink">Change password</h3>
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                aria-label="Close"
+                className="rounded-full w-7 h-7 flex items-center justify-center text-ink-soft hover:text-ink shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword} className="flex flex-col gap-2">
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Current password"
+                autoComplete="current-password"
+                className="rounded-2xl border border-primary/20 bg-background px-4 py-2.5 text-ink outline-none focus:ring-2 focus:ring-primary"
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password"
+                autoComplete="new-password"
+                className="rounded-2xl border border-primary/20 bg-background px-4 py-2.5 text-ink outline-none focus:ring-2 focus:ring-primary"
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                autoComplete="new-password"
+                className="rounded-2xl border border-primary/20 bg-background px-4 py-2.5 text-ink outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                type="submit"
+                className="mt-1 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-2.5"
+              >
+                Change password
+              </button>
+            </form>
+            {passwordStatus && (
+              <p
+                className={`text-sm font-semibold text-center ${
+                  passwordStatus.type === "success" ? "text-primary-dark" : "text-wrong-dark"
+                }`}
+              >
+                {passwordStatus.message}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

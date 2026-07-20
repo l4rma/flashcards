@@ -34,7 +34,7 @@ schedules when you should see each card again using spaced repetition.
 | `times_wrong`   | int | Lifetime count of Wrong grades — ditto |
 | `last_grade`    | string, nullable | Outcome of the most recent grade ("correct"/"wrong"); only used to detect "Comeback Kid", not shown in the UI |
 | `mastered`      | bool | Has this card ever crossed `scheduling.MASTERY_THRESHOLD_DAYS`? Lifetime flag for the "Word Master" achievement family |
-| `label`         | string, nullable | Free-text sub-deck grouping — **one label per card**, not multiple tags (a sub-deck is just "cards where `label == X`"). No separate labels table; the Deck page derives the distinct label list from whatever's actually in use across the already-fetched card list. Set at creation or via `PATCH /cards/{id}` (omit to leave unchanged, `null` *or a blank string* to clear — the edit form has no separate "clear" affordance, just an empty text input, so both have to mean the same thing) |
+| `label`         | string, nullable | Free-text sub-deck grouping — **one label per card**, not multiple tags (a sub-deck is just "cards where `label == X`"). No separate labels table; the Deck page derives the distinct label list from whatever's actually in use across the already-fetched card list. **Case-insensitive**: normalized to lowercase at write time (`schemas._normalize_label`, both `CardCreate` and `CardUpdate`) so "Animals"/"animals"/"ANIMALS" always group as one sub-deck — the canonical form lives in one place (the backend validator) rather than trying to case-fold consistently at every read site (filter pills, Extra Training's picker, the `used_label` achievement). Set at creation or via `PATCH /cards/{id}` (omit to leave unchanged, `null` *or a blank string* to clear — the edit form has no separate "clear" affordance, just an empty text input, so both have to mean the same thing) |
 
 `times_correct`/`times_wrong`/`mastered`/`last_grade` **are** cleared by
 Admin's "Reset all progress" action, same as `interval_days`/`due_date`/
@@ -185,7 +185,18 @@ Pages:
   (see Data model, above); a row of filter pills above the list ("All" +
   one per distinct label currently in use, derived client-side from the
   already-fetched card list — no new endpoint) filters which cards are
-  shown, and each row displays its label as a small pill when set.
+  shown, and each row displays its label as a small pill when set. A
+  "Select" toggle puts the list into **bulk-select mode**: each row gets
+  a checkbox (clicking anywhere on the row toggles it, selected rows get
+  a `ring-primary` highlight instead of the tilt/edit UI), and a bulk
+  action bar appears above the list — "Select all" (visible cards, i.e.
+  respects the active label filter), a text input + Apply to set every
+  selected card's label in one go, and a Delete-selected button. Both
+  bulk actions are plain `Promise.all` loops over the existing
+  `PATCH`/`DELETE /cards/{id}` endpoints on the frontend — no new bulk
+  endpoint, since a personal deck's size doesn't need one — and both
+  forward any achievement/level-up notices from every response in the
+  batch to the celebration queue, not just the first.
 - **Train** — the core loop: show English word (front) → click to flip and
   reveal the French word (back) → grade buttons → next card. Shows
   "Session complete" when the queue is empty. A small "🎲 Extra Training"
@@ -712,10 +723,13 @@ any resulting notices alongside the reward itself
 **Equipping** (`POST /collection/equip`, body `{title?, theme?}` — same
 omit-vs-null convention as `PATCH /profile`) requires ownership
 (`collection.equip_title`/`equip_theme` raise 400 otherwise); `null`
-un-equips. `GET /collection` returns every title/theme definition
-annotated with `owned`/`equipped`, plus each lootbox tier's info and
-current inventory count — the single source of truth `CollectionPage`
-renders directly, no client-side merging needed.
+un-equips. Checks achievements/level immediately afterward (e.g.
+"Dressed to Impress"/"New Look" unlock right on the equip call, not on
+some later unrelated action — see Open decisions #19). `GET /collection`
+returns every title/theme definition annotated with `owned`/`equipped`,
+plus each lootbox tier's info and current inventory count — the single
+source of truth `CollectionPage` renders directly, no client-side
+merging needed.
 
 ### Celebration popup (achievements, daily quests, and level-ups)
 
@@ -755,17 +769,31 @@ unlock/completion/level-up can only happen exactly when one of those
 actions runs — no new round-trip needed, and no risk of missing/
 duplicating a notification between requests.
 
-Frontend: `TrainPage` (after grading and after session-complete) and
-`DeckPage` (after adding a card) call `onAchievementsUnlocked`,
-`onQuestsCompleted`, and `onLeveledUp` callbacks with those fields;
-`App.jsx` owns a single global FIFO queue (`celebrationQueue`, mixing all
-three kinds) so the popup shows regardless of which tab triggered it, and
-multiple simultaneous unlocks/completions/level-ups (e.g. crossing
-several deck-size tiers in one add, or an achievement and a quest
-completing on the same grade) queue up and show one at a time rather than
-overlapping. Popup renders at the `App`
-level (`z-50`, covers everything) so it isn't tied to any one page's
-lifecycle.
+Frontend: every page that can trigger a reward (`TrainPage`, `DeckPage`,
+`SettingsPage`, `CollectionPage`, `PracticeSession`) calls
+`onAchievementsUnlocked`, `onQuestsCompleted`, and/or `onLeveledUp`
+callbacks with those fields; `App.jsx` owns a single global FIFO queue
+(`celebrationQueue`, mixing all three kinds) so the popup shows
+regardless of which tab triggered it, and multiple simultaneous
+unlocks/completions/level-ups (e.g. crossing several deck-size tiers in
+one add, or an achievement and a quest completing on the same grade)
+queue up and show one at a time rather than overlapping. Popup renders at
+the `App` level (`z-50`, covers everything) so it isn't tied to any one
+page's lifecycle.
+
+**`App.jsx`'s `handleAchievementsUnlocked`/`handleLeveledUp` also call
+`refreshStats()` whenever the list they're given is non-empty** — a
+reward (coins, and for level-ups possibly a lootbox) is applied
+server-side the instant it's unlocked, but the top stats bar only shows
+whatever `stats` was last fetched into React state. Before this, the
+visible coin count only updated on whichever action happened to already
+call `refreshStats`/`onGraded` (grading a card, mainly) — so an
+achievement unlocked from, say, adding a card or equipping a theme could
+silently change your coin balance server-side while the bar kept showing
+the old number until your next grade. Centralizing the refresh in these
+two callbacks (rather than adding `onChanged` to every page individually)
+means any *future* action that reports achievements/level-ups gets this
+for free too.
 
 ### API
 
@@ -918,6 +946,11 @@ field to leave it unchanged, send `null` to clear it); no uniqueness
 check on username. Surfaced back to the frontend via the existing
 `GET /stats` response (`StatsOut` gained the same two fields) rather than
 a separate endpoint, since `Stats` already is the one-item-per-user blob.
+Checks achievements/level immediately afterward (e.g. "Make It Yours"
+unlocks right on the call that completes it, not on some later unrelated
+action — see Open decisions #19) — "not gamification progress" above is
+about what `reset_all_stats` touches, not about which actions can trigger
+a reward; those are independent questions.
 
 ### Settings page
 
@@ -930,9 +963,14 @@ Profile page's job; showing it twice was redundant):
   separate Save step for the avatar).
 - **Appearance** — the Light/Auto/Dark theme toggle (`ThemeToggle.jsx`,
   see `DESIGN.md`'s Dark theme section). No confirm dialog.
-- **Change password** — current/new/confirm password fields, calls
-  Cognito's `ChangePassword` Identity Provider API **directly from the
-  frontend** (`auth.js`'s `changePassword`) with the current access
+- **Account** — a single "Change password" button opens a popup (modal
+  shell reused from the achievement-detail popup: `bg-ink/40` backdrop,
+  `rounded-3xl` sheet, its own ✕) containing the current/new/confirm
+  password fields — **not** an always-visible inline form (the original
+  design), since a 3-field password form sitting permanently on the page
+  read as more prominent than an occasional action deserves. Submitting
+  calls Cognito's `ChangePassword` Identity Provider API **directly from
+  the frontend** (`auth.js`'s `changePassword`) with the current access
   token — no new backend endpoint, no Lambda IAM permission. Same "raw
   fetch to a Cognito endpoint, no SDK" style `auth.js` already uses for
   the OAuth token exchange, just a different Cognito endpoint
@@ -945,18 +983,21 @@ Profile page's job; showing it twice was redundant):
   already-issued tokens (existing sessions need to log in again to pick
   it up, which happens naturally within 60 minutes since access tokens
   that short-lived already force frequent re-auth).
-- **Reset all progress** — the single full reset (`POST
-  /reset-all-progress`, behind a confirm dialog): streak, coins, session
+- **Danger zone** — both destructive-progress actions live in the one
+  coral-tinted card now: **Reset all progress** (`POST
+  /reset-all-progress`, behind a confirm dialog — streak, coins, session
   baseline, every card's scheduling, all achievement unlocks, and all
-  daily-quest completions. Previously this was split across
-  four separate buttons (reset streak / reset coins / reset all stats /
-  reset training progress); collapsed to one since the app doesn't need
-  that granularity in practice. Does **not** touch profile identity (see
-  above).
-- **Log out**.
-- **Delete ALL cards** — separate "danger zone" (behind its own confirm
-  dialog), most destructive action (actually removes card data, not just
-  progress).
+  daily-quest completions; does **not** touch profile identity, see
+  above) and **Delete ALL cards** (behind its own confirm dialog, the
+  more destructive of the two since it actually removes card data, not
+  just progress). Originally Reset-all-progress sat in its own neutral
+  card next to Log out, with Delete-ALL-cards alone in the danger card —
+  regrouped so *every* destructive-progress action reads as one danger
+  zone, not split across a neutral-looking card and a scary-looking one.
+- **Log out** — its own button at the very bottom of the page, below the
+  danger zone, deliberately *not* inside it: logging out isn't
+  destructive (nothing is lost), so it shouldn't share the danger zone's
+  coral-tinted, confirm-gated visual weight.
 
 Behind the same Cognito auth as every other page/route — scoped to
 whichever user is logged in, same as everywhere else. No extra
@@ -1165,14 +1206,44 @@ these you'd like changed:
     require *completing* a full pass, not just starting one — "testing a
     prebuilt deck" could arguably mean just trying it, but completion is
     the only clean signal point given practice makes no other backend
-    call; (b) `used_label` only tracks labeling a card **at creation**,
-    not adding one later via edit, since `PATCH /cards/{id}` has no
-    stats/achievement wiring at all today (matches the existing
-    deck-size-achievements precedent of only counting `POST /cards`, not
-    edits). The real bug: achievement conditions reading `stats.level`
+    call; (b) `used_label` originally only tracked labeling a card **at
+    creation**, not adding one later via edit, since `PATCH /cards/{id}`
+    had no stats/achievement wiring at all — **superseded** shortly after
+    (see the achievement-checks-were-missing entry further down): editing
+    a label now unlocks it too. The real bug: achievement conditions
+    reading `stats.level`
     were being evaluated *before* that request's own level-up was
     finalized, since `leveling.finalize_level` used to run once, after
     the achievement check. Fixed by calling it twice per request (see
     Achievements, above, and `app/main.py`'s `_finalize_level`
     docstring) — caught by a genuinely failing test during development,
     not discovered after deploy.
+19. **User-reported bug batch: labels weren't case-insensitive, the
+    stats bar didn't refresh on non-grade rewards, and three routes never
+    checked achievements at all.** All fixed together:
+    - Labels are now lowercased at write time (`schemas._normalize_label`,
+      both `CardCreate`/`CardUpdate`) so casing can't fragment one
+      sub-deck into several.
+    - `PATCH /cards/{id}`, `PATCH /profile`, and `POST /collection/equip`
+      now all check achievements/level, same as every other
+      stats-mutating route — they previously didn't, on the reasoning
+      that editing a card/setting your identity/equipping something was
+      "not gamification progress." That reasoning was correct about
+      *reset* behavior but wrong to also apply to *reward-checking* — a
+      user pointed out achievements like "Organizer"/"Make It
+      Yours"/"Dressed to Impress"/"New Look" were only surfacing on some
+      later, unrelated action instead of the action that actually earned
+      them. `used_label` specifically: was creation-only (see #18b),
+      now also fires on an edit that adds a label.
+    - `App.jsx`'s `handleAchievementsUnlocked`/`handleLeveledUp` now call
+      `refreshStats()` — see the Celebration popup section's new note,
+      above, for why this was centralized in two places instead of
+      threading `onChanged` through every page.
+    - Deck page gained bulk-select (checkboxes, a "Select" toggle, bulk
+      set-label/delete) — see Frontend, above.
+    - Settings page: change password moved from an always-visible inline
+      form to a button that opens a popup; Reset all progress and Delete
+      ALL cards now both live in the one danger-zone card; Log out moved
+      to its own button at the very bottom, outside the danger zone (not
+      destructive, so it shouldn't share that visual weight) — see
+      Settings page, above.

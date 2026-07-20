@@ -41,6 +41,10 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
   const [draft, setDraft] = useState({ french: "", english: "", label: "" });
   const [activeLabel, setActiveLabel] = useState(null); // null = "All"
 
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkLabel, setBulkLabel] = useState("");
+
   async function refresh() {
     setLoading(true);
     const [allCards, due] = await Promise.all([listCards(), listDueCards()]);
@@ -105,13 +109,53 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
   }
 
   async function saveEdit(id) {
-    await updateCard(id, draft);
+    const updated = await updateCard(id, draft);
+    onAchievementsUnlocked?.(updated.newly_unlocked_achievements);
+    onLeveledUp?.(updated.newly_leveled_up);
     setEditingId(null);
     await refresh();
   }
 
   async function handleDelete(id) {
     await deleteCard(id);
+    await refresh();
+  }
+
+  function toggleSelectMode() {
+    setSelectMode((v) => !v);
+    setSelectedIds(new Set());
+    setBulkLabel("");
+  }
+
+  function toggleSelected(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelectedIds(new Set(filteredCards.map((c) => c.id)));
+  }
+
+  async function applyBulkLabel(e) {
+    e.preventDefault();
+    if (selectedIds.size === 0) return;
+    const value = bulkLabel.trim() || null;
+    const results = await Promise.all([...selectedIds].map((id) => updateCard(id, { label: value })));
+    onAchievementsUnlocked?.(results.flatMap((r) => r.newly_unlocked_achievements));
+    onLeveledUp?.(results.flatMap((r) => r.newly_leveled_up));
+    toggleSelectMode();
+    await refresh();
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected card(s)? This cannot be undone.`)) return;
+    await Promise.all([...selectedIds].map((id) => deleteCard(id)));
+    toggleSelectMode();
     await refresh();
   }
 
@@ -184,10 +228,58 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
       <div className="w-full max-w-sm">
         <div className="flex items-baseline justify-between mb-4">
           <h1 className="font-display font-semibold text-2xl text-ink">Your deck</h1>
-          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
-            {cards.length} card{cards.length === 1 ? "" : "s"} · {dueCount} due
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+              {cards.length} card{cards.length === 1 ? "" : "s"} · {dueCount} due
+            </span>
+            {cards.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectMode}
+                className="text-xs font-bold uppercase tracking-wide text-primary-dark hover:underline"
+              >
+                {selectMode ? "Cancel" : "Select"}
+              </button>
+            )}
+          </div>
         </div>
+        {selectMode && (
+          <div className="bg-surface rounded-2xl shadow-md ring-1 ring-ink/10 p-4 mb-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-ink">{selectedIds.size} selected</span>
+              <button
+                type="button"
+                onClick={selectAllVisible}
+                className="text-xs font-bold text-primary-dark hover:underline"
+              >
+                Select all
+              </button>
+            </div>
+            <form onSubmit={applyBulkLabel} className="flex gap-2">
+              <input
+                value={bulkLabel}
+                onChange={(e) => setBulkLabel(e.target.value)}
+                placeholder="Set sub-deck for selected…"
+                className="flex-1 min-w-0 rounded-xl border border-primary-light bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                type="submit"
+                disabled={selectedIds.size === 0}
+                className="rounded-full bg-primary-light text-primary-dark font-bold px-4 py-2 text-sm shrink-0 disabled:opacity-40"
+              >
+                Apply
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={bulkDelete}
+              disabled={selectedIds.size === 0}
+              className="rounded-full bg-wrong hover:bg-wrong-dark active:scale-95 transition text-white font-bold py-2.5 text-sm disabled:opacity-40"
+            >
+              Delete selected
+            </button>
+          </div>
+        )}
         {labels.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             <button
@@ -230,7 +322,14 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
               <div
                 key={card.id}
                 style={editingId === card.id ? undefined : { transform: `rotate(${tiltFor(card.id)}deg)` }}
-                className="relative bg-surface rounded-2xl shadow-md ring-1 ring-ink/10 px-4 py-3.5 flex items-center justify-between gap-3"
+                onClick={selectMode ? () => toggleSelected(card.id) : undefined}
+                className={`relative bg-surface rounded-2xl shadow-md px-4 py-3.5 flex items-center justify-between gap-3 ${
+                  selectMode ? "cursor-pointer" : ""
+                } ${
+                  selectMode && selectedIds.has(card.id)
+                    ? "ring-2 ring-primary"
+                    : "ring-1 ring-ink/10"
+                }`}
               >
                 <span className="absolute top-3 left-3 w-2 h-2 rounded-full bg-background ring-1 ring-ink/10" />
                 {editingId === card.id ? (
@@ -280,22 +379,32 @@ export default function DeckPage({ onAchievementsUnlocked, onQuestsCompleted, on
                         </span>
                       )}
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(card)}
-                        className="rounded-full bg-primary-light text-primary-dark font-semibold px-3 py-1 text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(card.id)}
-                        className="rounded-full bg-wrong/10 text-wrong-dark font-semibold px-3 py-1 text-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    {selectMode ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(card.id)}
+                        onChange={() => toggleSelected(card.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 accent-primary shrink-0"
+                      />
+                    ) : (
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(card)}
+                          className="rounded-full bg-primary-light text-primary-dark font-semibold px-3 py-1 text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(card.id)}
+                          className="rounded-full bg-wrong/10 text-wrong-dark font-semibold px-3 py-1 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

@@ -121,10 +121,9 @@ class Stats:
     # Lifetime lootbox-opens — for the "lootboxes" achievement family.
     # Incremented in collection.open_lootbox.
     lootboxes_opened: int = 0
-    # Set the first time a card is created with a non-blank label — for
-    # the "Organizer" achievement. Only tracked at creation time (not on
-    # a later edit that adds a label), same as every deck-size achievement
-    # only counting POST /cards, not edits.
+    # Set the first time a card is given a non-blank label, whether at
+    # creation (POST /cards) or via a later edit (PATCH /cards/{id}) —
+    # for the "Organizer" achievement.
     used_label: bool = False
     # One-time flags + a lifetime counter for the Extra Training
     # achievements (app/main.py's POST /practice/completed) — practice

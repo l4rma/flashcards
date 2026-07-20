@@ -47,6 +47,14 @@ def test_used_label_achievement_does_not_unlock_without_a_label(client):
     assert "used_label" not in {a["key"] for a in created["newly_unlocked_achievements"]}
 
 
+def test_used_label_achievement_also_unlocks_via_edit(client):
+    card = client.post("/cards", json={"french": "chien", "english": "dog"}).json()
+    assert "used_label" not in {a["key"] for a in card["newly_unlocked_achievements"]}
+
+    updated = client.patch(f"/cards/{card['id']}", json={"label": "animals"})
+    assert "used_label" in {a["key"] for a in updated.json()["newly_unlocked_achievements"]}
+
+
 def test_practice_completed_own_deck_unlocks_full_circle(client):
     resp = client.post("/practice/completed", json={"source": "own_deck"})
     assert resp.status_code == 200
@@ -85,16 +93,14 @@ def test_practice_completed_five_times_unlocks_practice_family(client):
 
 
 def test_profile_set_up_unlocks_once_username_and_avatar_are_both_set(client):
-    # PATCH /profile doesn't check achievements itself (it's identity, not
-    # gamification progress) — the unlock surfaces on the next action that
-    # does, e.g. adding a card.
-    client.patch("/profile", json={"username": "Lars"})
-    created = client.post("/cards", json={"french": "chat", "english": "cat"}).json()
-    assert "profile_set_up" not in {a["key"] for a in created["newly_unlocked_achievements"]}
+    # PATCH /profile checks achievements itself now — the unlock surfaces
+    # immediately, on whichever call actually completes the condition
+    # (username *and* avatar both set), not on some later unrelated action.
+    resp1 = client.patch("/profile", json={"username": "Lars"})
+    assert "profile_set_up" not in {a["key"] for a in resp1.json()["newly_unlocked_achievements"]}
 
-    client.patch("/profile", json={"avatar_key": "fox"})
-    created2 = client.post("/cards", json={"french": "chien", "english": "dog"}).json()
-    assert "profile_set_up" in {a["key"] for a in created2["newly_unlocked_achievements"]}
+    resp2 = client.patch("/profile", json={"avatar_key": "fox"})
+    assert "profile_set_up" in {a["key"] for a in resp2.json()["newly_unlocked_achievements"]}
 
 
 def test_level_achievement_unlocks_at_level_5(client):
@@ -136,17 +142,13 @@ def test_equipped_title_and_theme_achievements(client, store):
     stats.owned_themes = [THEMES[0].key]
     save_stats(store, stats)
 
-    client.post("/collection/equip", json={"title": TITLES[0].key})
-    client.post("/collection/equip", json={"theme": THEMES[0].key})
+    # Equip checks achievements itself now — the unlock surfaces
+    # immediately on the equip call, not on some later unrelated action.
+    resp1 = client.post("/collection/equip", json={"title": TITLES[0].key})
+    assert "equipped_title" in {a["key"] for a in resp1.json()["newly_unlocked_achievements"]}
 
-    # Equip itself doesn't check achievements (identity-like action, same
-    # as PATCH /profile) — the unlock surfaces on the next action that
-    # does, which here is the card creation itself (the very first
-    # gamification-checking call after equipping).
-    created = client.post("/cards", json={"french": "chat", "english": "cat"}).json()
-    unlocked = {a["key"] for a in created["newly_unlocked_achievements"]}
-    assert "equipped_title" in unlocked
-    assert "equipped_theme" in unlocked
+    resp2 = client.post("/collection/equip", json={"theme": THEMES[0].key})
+    assert "equipped_theme" in {a["key"] for a in resp2.json()["newly_unlocked_achievements"]}
 
 
 def test_reset_all_progress_clears_new_achievement_tracking_fields(client):

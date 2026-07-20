@@ -970,6 +970,60 @@ real correctness fix the new "level" achievements surfaced.
       `done` stays true); a ref holds the latest callbacks instead.
       `npm run build` + `oxlint` clean, zero warnings.
 
+### Bug-fix batch: label case, missing achievement checks, Settings layout
+User-reported, fixed together.
+- [x] Labels are now case-insensitive — `schemas._normalize_label`
+      lowercases at write time (both `CardCreate`/`CardUpdate`), so
+      "Animals"/"animals"/"ANIMALS" always group as one sub-deck. 3 new
+      backend tests.
+- [x] Deck page gained **bulk-select**: a "Select" toggle puts the list
+      into a checkbox mode (click anywhere on a row to toggle; selected
+      rows drop their tilt for a `ring-2 ring-primary` highlight instead
+      of edit/delete buttons), a bulk-action bar (Select all — respects
+      the active label filter —, set-label-for-selected, delete-selected)
+      appears above the list. Both bulk actions are `Promise.all` loops
+      over the existing per-card `PATCH`/`DELETE` endpoints — no new bulk
+      endpoint needed — and forward every response's achievement/level-up
+      notices to the celebration queue, not just the first.
+- [x] **Bug fix**: the stats bar's coin count only updated on whichever
+      action happened to already call `refreshStats` (mainly grading) —
+      an achievement/level-up reward from *any other* action (adding a
+      card, equipping something, changing your profile) changed coins
+      server-side but the bar kept showing the stale number until the
+      next grade. Fixed by having `App.jsx`'s
+      `handleAchievementsUnlocked`/`handleLeveledUp` call `refreshStats()`
+      whenever they're given a non-empty list — centralized there instead
+      of threading `onChanged` through every page, so any future action
+      reporting a reward gets this for free.
+- [x] **Bug fix**: `PATCH /cards/{id}`, `PATCH /profile`, and
+      `POST /collection/equip` never checked achievements/level at all —
+      achievements like "Organizer"/"Make It Yours"/"Dressed to
+      Impress"/"New Look" only surfaced on some later, unrelated action
+      that happened to check. Added the same double-`_finalize_level` +
+      `check_and_unlock_achievements` pattern used everywhere else to all
+      three. `used_label` (Phase 13/18) now fires on an edit that adds a
+      label too, not just at creation — the "only counts creation"
+      design note is superseded. Two existing tests
+      (`test_profile_set_up_unlocks_once_username_and_avatar_are_both_set`,
+      `test_equipped_title_and_theme_achievements`) had encoded the old
+      "identity actions don't check achievements" behavior as their
+      premise and needed rewriting, not just their assertions patched. 2
+      new tests for the update_card/equip paths.
+- [x] Settings page: **Change password** is now a single button that
+      opens a popup (reuses the achievement-detail popup's modal shell)
+      instead of an always-visible 3-field inline form. **Reset all
+      progress** moved into the **Danger zone** card alongside **Delete
+      ALL cards** (previously sat in its own neutral card) — every
+      destructive-progress action now shares one visual treatment.
+      **Log out** moved to a standalone button at the very bottom of the
+      page, outside the danger zone (logging out isn't destructive, so it
+      shouldn't carry that card's coral-tinted, confirm-gated weight).
+- [x] 4 new backend tests this batch (3 label-normalization, 1
+      update-card-triggers-used_label) plus 2 existing tests rewritten to
+      match the new behavior instead of just having their assertions
+      patched. 186 backend tests passing. `npm run build` + `oxlint`
+      clean.
+
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every
 phase above (grade, flip, achievement/quest/level-up celebration,

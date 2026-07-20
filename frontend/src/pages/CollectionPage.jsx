@@ -64,7 +64,9 @@ export default function CollectionPage({ onChanged, onAchievementsUnlocked, onLe
   async function handleEquipTitle(title) {
     const nextTitle = collection.titles.find((t) => t.key === title.key)?.equipped ? null : title.key;
     try {
-      await equipCollectible({ title: nextTitle });
+      const updated = await equipCollectible({ title: nextTitle });
+      onAchievementsUnlocked?.(updated.newly_unlocked_achievements);
+      onLeveledUp?.(updated.newly_leveled_up);
       await refresh();
     } catch (err) {
       setStatus({ type: "error", message: err.message });
@@ -75,7 +77,9 @@ export default function CollectionPage({ onChanged, onAchievementsUnlocked, onLe
     const isEquipped = collection.themes.find((t) => t.key === theme.key)?.equipped;
     const nextTheme = isEquipped ? null : theme.key;
     try {
-      await equipCollectible({ theme: nextTheme });
+      const updated = await equipCollectible({ theme: nextTheme });
+      onAchievementsUnlocked?.(updated.newly_unlocked_achievements);
+      onLeveledUp?.(updated.newly_leveled_up);
       applyCollectionTheme(isEquipped ? null : theme);
       await refresh();
     } catch (err) {

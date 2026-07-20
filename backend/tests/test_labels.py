@@ -50,6 +50,27 @@ def test_create_card_blank_label_is_treated_as_no_label(client):
     assert resp.json()["label"] is None
 
 
+def test_label_is_case_normalized_on_create(client):
+    resp = client.post("/cards", json={"french": "chien", "english": "dog", "label": "Animals"})
+    assert resp.json()["label"] == "animals"
+
+
+def test_label_is_case_normalized_on_update(client):
+    card = client.post("/cards", json={"french": "chien", "english": "dog"}).json()
+    resp = client.patch(f"/cards/{card['id']}", json={"label": "ANIMALS"})
+    assert resp.json()["label"] == "animals"
+
+
+def test_differently_cased_labels_group_together(client):
+    client.post("/cards", json={"french": "chien", "english": "dog", "label": "Animals"})
+    client.post("/cards", json={"french": "chat", "english": "cat", "label": "animals"})
+    client.post("/cards", json={"french": "vache", "english": "cow", "label": "ANIMALS"})
+
+    cards = client.get("/cards").json()
+    labels = {c["label"] for c in cards}
+    assert labels == {"animals"}
+
+
 def test_list_cards_can_be_grouped_by_label_client_side(client):
     client.post("/cards", json={"french": "chien", "english": "dog", "label": "animals"})
     client.post("/cards", json={"french": "chat", "english": "cat", "label": "animals"})

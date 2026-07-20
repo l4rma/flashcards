@@ -19,6 +19,17 @@ def _blank_to_none(value: str | None) -> str | None:
     return value or None
 
 
+def _normalize_label(value: str | None) -> str | None:
+    """Labels are case-insensitive sub-decks — "Animals"/"animals"/
+    "ANIMALS" must all group as the same one, so the label is lowercased
+    at write time (the single canonical form) rather than trying to do
+    case-insensitive comparison at every read site (the Deck page's
+    filter pills, Extra Training's sub-deck picker, the "used_label"
+    achievement — none of them would agree independently)."""
+    value = _blank_to_none(value)
+    return value.lower() if value is not None else None
+
+
 class CardCreate(BaseModel):
     french: str
     english: str
@@ -27,7 +38,7 @@ class CardCreate(BaseModel):
     @field_validator("label")
     @classmethod
     def _validate_label(cls, value: str | None) -> str | None:
-        return _blank_to_none(value)
+        return _normalize_label(value)
 
 
 class CardUpdate(BaseModel):
@@ -46,7 +57,7 @@ class CardUpdate(BaseModel):
     @field_validator("label")
     @classmethod
     def _validate_label(cls, value: str | None) -> str | None:
-        return _blank_to_none(value)
+        return _normalize_label(value)
 
 
 class GradeRequest(BaseModel):

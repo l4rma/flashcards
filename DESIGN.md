@@ -28,6 +28,13 @@ physical pile," so keeping pre-built content visually flat is a small,
 legible cue that this is borrowed/browsable material, not something you
 own — consistent with it never entering `Cards` at all.
 
+**Bulk-select mode temporarily suspends the tilt read**: a row currently
+selected drops its rotation and gets a `ring-2 ring-primary` highlight
+instead — selection is a functional, temporary state (which cards will
+this bulk action apply to), not part of the permanent "loose stack"
+identity, so it deliberately reads as a different visual mode (a
+checklist) rather than a stack with some cards picked out.
+
 ## Typography
 
 Two faces, deliberately paired for contrast rather than one font doing
@@ -196,11 +203,23 @@ small plain text — it's real content now (today's numbers), not a caption.
   settings — a deliberate exception, since a toggle is a different kind of
   control than a row of buttons and reads better with its own space, not
   folded into the settings card. Grew to **five** cards with profile
-  identity + change password (Profile, Appearance, Change password,
-  Reset/Log out, Danger zone) — each stays its own card rather than being
-  folded together, same reasoning as the Appearance exception: an avatar
-  grid, a username field, and a 3-field password form are each a distinct
+  identity + change password (Profile, Appearance, Account, Danger zone,
+  plus a standalone Log out button) — each stays its own card rather than
+  being folded together, same reasoning as the Appearance exception: an
+  avatar grid, a username field, and a password flow are each a distinct
   kind of control, not more rows in the same button stack.
+  **Revised**: the 3-field password form doesn't sit inline in the
+  Account card anymore — it's compact now, just a single "Change
+  password" button, with the actual fields moved into a popup (reuses the
+  achievement-detail popup's modal shell) on click. A permanently-visible
+  3-field form read as more prominent than an occasional action deserves.
+  Also revised: Reset all progress moved into the Danger zone card
+  (previously sat in a neutral card next to Log out) so every
+  destructive-progress action shares one visual treatment instead of
+  being split across a scary-looking card and a neutral-looking one: Log
+  out is the one action that moved *out* on its own, to the very bottom
+  of the page, since logging out loses nothing and shouldn't carry the
+  danger zone's coral-tinted, confirm-gated weight.
 
 ## Interaction
 

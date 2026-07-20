@@ -66,12 +66,22 @@ function App() {
     authenticate();
   }, []);
 
+  // Achievement/level-up rewards pay out coins (and, for level-ups,
+  // lootboxes) immediately server-side, but the top stats bar only shows
+  // whatever `stats` was last fetched — without this, the coin count
+  // visibly lagged until the next action that happened to call
+  // refreshStats (e.g. grading a card), even though the reward had
+  // already landed. Refreshing here, once, covers every action that can
+  // report a reward (add/edit a card, grade, session-complete, equip,
+  // profile update, lootbox open, practice completion) without needing
+  // each page to remember its own onChanged/onGraded call.
   function handleAchievementsUnlocked(newlyUnlocked) {
     if (newlyUnlocked?.length) {
       setCelebrationQueue((queue) => [
         ...queue,
         ...newlyUnlocked.map((a) => ({ kind: "achievement", ...a })),
       ]);
+      refreshStats();
     }
   }
 
@@ -81,6 +91,7 @@ function App() {
         ...queue,
         ...newlyCompleted.map((q) => ({ kind: "quest", ...q })),
       ]);
+      refreshStats();
     }
   }
 
@@ -90,6 +101,7 @@ function App() {
         ...queue,
         ...newlyLeveledUp.map((l) => ({ kind: "level_up", ...l })),
       ]);
+      refreshStats();
     }
   }
 
@@ -144,7 +156,14 @@ function App() {
             onLeveledUp={handleLeveledUp}
           />
         )}
-        {tab === "settings" && <SettingsPage key={tab} onChanged={refreshStats} />}
+        {tab === "settings" && (
+          <SettingsPage
+            key={tab}
+            onChanged={refreshStats}
+            onAchievementsUnlocked={handleAchievementsUnlocked}
+            onLeveledUp={handleLeveledUp}
+          />
+        )}
       </main>
 
       <nav className="fixed bottom-0 inset-x-0 flex justify-center pb-safe pt-2 px-4 pointer-events-none">

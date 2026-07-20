@@ -149,7 +149,20 @@ def update_card(
     if "label" in payload.model_fields_set:
         card.label = payload.label
     cards_mod.save_card(store, card)
-    return CardOut.model_validate(card)
+
+    stats = stats_mod.get_or_create_stats(store, user_id)
+    if payload.label is not None:
+        stats.used_label = True
+    stats_mod.save_stats(store, stats)
+
+    newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
+
+    result = CardOut.model_validate(card)
+    result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
+    result.newly_leveled_up = newly_leveled_up
+    return result
 
 
 @app.delete("/cards/{card_id}", status_code=204)
@@ -213,14 +226,24 @@ def update_profile(
     """Sets username/avatar_key — both optional/independent (omit a field
     to leave it unchanged). Profile identity lives on Stats (see
     models.py) but isn't gamification progress, so it's untouched by
-    reset-all-progress."""
+    reset-all-progress. Still checks achievements/level afterward
+    (e.g. "Make It Yours") — identity vs. progress is about what gets
+    reset, not about which actions can trigger a reward."""
     stats = stats_mod.get_or_create_stats(store, user_id)
     if "username" in payload.model_fields_set:
         stats.username = payload.username
     if "avatar_key" in payload.model_fields_set:
         stats.avatar_key = payload.avatar_key
     stats_mod.save_stats(store, stats)
-    return StatsOut.model_validate(stats)
+
+    newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
+
+    result = StatsOut.model_validate(stats)
+    result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
+    result.newly_leveled_up = newly_leveled_up
+    return result
 
 
 @app.post("/stats/session-complete", response_model=StatsOut)
@@ -282,14 +305,23 @@ def equip_collectible(
 ):
     """Sets equipped_title/equipped_theme — both optional/independent, same
     omit-vs-null convention as PATCH /profile. Raises 400 if a given key
-    isn't owned (collection.equip_title/equip_theme)."""
+    isn't owned (collection.equip_title/equip_theme). Checks achievements/
+    level afterward (e.g. "Dressed to Impress"/"New Look")."""
     stats = stats_mod.get_or_create_stats(store, user_id)
     if "title" in payload.model_fields_set:
         collection_mod.equip_title(stats, payload.title)
     if "theme" in payload.model_fields_set:
         collection_mod.equip_theme(stats, payload.theme)
     stats_mod.save_stats(store, stats)
-    return StatsOut.model_validate(stats)
+
+    newly_leveled_up = _finalize_level(store, user_id, stats)
+    newly_unlocked = achievements_mod.check_and_unlock_achievements(store, user_id, stats)
+    newly_leveled_up += _finalize_level(store, user_id, stats)
+
+    result = StatsOut.model_validate(stats)
+    result.newly_unlocked_achievements = _unlock_notices(newly_unlocked)
+    result.newly_leveled_up = newly_leveled_up
+    return result
 
 
 @app.post("/collection/lootboxes/{tier}/buy", response_model=CollectionOut)
