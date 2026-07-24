@@ -7,8 +7,10 @@ read through it. This is not something I would recommend, but was an experiment
 for a fun home project. You can read about it in a blog post I wrote about the
 development process at [magelssen.io/blog/flashcards](http://magelssen.io/blog/flashcards).
 
-### Diagrams
+### Claude diagram
 ![ai diagram](./claude-diagram.png)
+
+### App diagram
 ![app diagram](./app-diagram.png)
 
 ## Deployment
