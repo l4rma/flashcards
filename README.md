@@ -1,10 +1,15 @@
 # Flash Cards
 
-Live at https://d3kfmju6qasf0s.cloudfront.net. Source at
-https://github.com/l4rma/flashcards (private).
+## Information / Disclamer
+This is the result of me trying to create an app with spec-driven development
+using Agentic AI. I have not written any of the code myself, and bearly even
+read through it. This is not something I would recommend, but was an experiment
+for a fun home project. You can read about it in a blog post I wrote about the
+development process at [magelssen.io/blog/flashcards](http://magelssen.io/blog/flashcards).
 
-See `SPEC.md` for design, `TASKS.md` for the phased build plan, `DESIGN.md`
-for the visual style brief.
+### Diagrams
+![ai diagram](./claude-diagram.png)
+![app diagram](./app-diagram.png)
 
 ## Deployment
 
