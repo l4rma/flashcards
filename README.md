@@ -1,4 +1,4 @@
-# Flash Cards
+# Flashcards
 
 ## Information / Disclamer
 This is the result of me trying to create an app with spec-driven development
