@@ -1,4 +1,5 @@
 # Flashcards
+![Flashcards screenshot](./flashcards-screenshot.png)
 
 ## Information / Disclamer
 This is the result of me trying to create an app with spec-driven development
