@@ -21,6 +21,42 @@ const ORDER_OPTIONS = [
   { key: "shuffled", label: "Shuffled" },
 ];
 
+// Same row shape for "your decks" and pre-built decks — title + card
+// count on the left, Preview/Practice on the right — per explicit
+// request that the two sections shouldn't look different from each
+// other. Own-deck rows never need `disabled` for pending-network reasons
+// (their cards are already in hand, no fetch), only for an empty deck.
+function DeckRow({ title, count, onPreview, onPractice, previewDisabled, practiceDisabled }) {
+  return (
+    <div className="bg-surface rounded-2xl shadow-md ring-1 ring-ink/10 px-4 py-3.5 flex items-center justify-between gap-3">
+      <div>
+        <p className="font-display font-medium text-ink leading-tight">{title}</p>
+        <p className="text-xs text-ink-soft">
+          {count} card{count === 1 ? "" : "s"}
+        </p>
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <button
+          type="button"
+          disabled={previewDisabled}
+          onClick={onPreview}
+          className="rounded-full bg-primary-light text-primary-dark font-semibold px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          Preview
+        </button>
+        <button
+          type="button"
+          disabled={practiceDisabled}
+          onClick={onPractice}
+          className="rounded-full bg-primary text-white font-semibold px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          Practice
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ExtraTrainingPicker({ onStart, onClose }) {
   const [cards, setCards] = useState(null);
   const [prebuiltDecks, setPrebuiltDecks] = useState(null);
@@ -38,6 +74,10 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
   }, []);
 
   const labels = cards ? [...new Set(cards.map((c) => c.label).filter(Boolean))].sort() : [];
+
+  function previewOwn(title, ownCards) {
+    setPreview({ title, cards: ownCards });
+  }
 
   async function handlePreview(deck) {
     setPendingKey(deck.key);
@@ -95,27 +135,26 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
         <p className="text-center py-10 text-ink-soft">Loading…</p>
       ) : (
         <>
-          <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-5 flex flex-col gap-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Your deck</p>
-            <button
-              type="button"
-              disabled={cards.length === 0}
-              onClick={() => onStart(toQueue(orderCards(cards)), "All my cards", "own_deck")}
-              className="rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold py-3 disabled:opacity-40"
-            >
-              All my cards ({cards.length})
-            </button>
+          <div className="w-full max-w-sm flex flex-col gap-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-soft px-1">Your decks</p>
+            <DeckRow
+              title="All my cards"
+              count={cards.length}
+              previewDisabled={cards.length === 0}
+              practiceDisabled={cards.length === 0}
+              onPreview={() => previewOwn("All my cards", cards)}
+              onPractice={() => onStart(toQueue(orderCards(cards)), "All my cards", "own_deck")}
+            />
             {labels.map((l) => {
               const inLabel = cards.filter((c) => c.label === l);
               return (
-                <button
+                <DeckRow
                   key={l}
-                  type="button"
-                  onClick={() => onStart(toQueue(orderCards(inLabel)), l, "sub_deck")}
-                  className="rounded-full bg-primary-light hover:bg-primary/20 text-primary-dark font-bold py-3 transition"
-                >
-                  {l} ({inLabel.length})
-                </button>
+                  title={l}
+                  count={inLabel.length}
+                  onPreview={() => previewOwn(l, inLabel)}
+                  onPractice={() => onStart(toQueue(orderCards(inLabel)), l, "sub_deck")}
+                />
               );
             })}
             {cards.length === 0 && (
@@ -129,33 +168,15 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
                 Pre-built decks
               </p>
               {prebuiltDecks.map((deck) => (
-                <div
+                <DeckRow
                   key={deck.key}
-                  className="bg-surface rounded-2xl shadow-md ring-1 ring-ink/10 px-4 py-3.5 flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <p className="font-display font-medium text-ink leading-tight">{deck.title}</p>
-                    <p className="text-xs text-ink-soft">{deck.card_count} words</p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={pendingKey === deck.key}
-                      onClick={() => handlePreview(deck)}
-                      className="rounded-full bg-primary-light text-primary-dark font-semibold px-3 py-1.5 text-sm disabled:opacity-50"
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      disabled={pendingKey === deck.key}
-                      onClick={() => handlePractice(deck)}
-                      className="rounded-full bg-primary text-white font-semibold px-3 py-1.5 text-sm disabled:opacity-50"
-                    >
-                      Practice
-                    </button>
-                  </div>
-                </div>
+                  title={deck.title}
+                  count={deck.card_count}
+                  previewDisabled={pendingKey === deck.key}
+                  practiceDisabled={pendingKey === deck.key}
+                  onPreview={() => handlePreview(deck)}
+                  onPractice={() => handlePractice(deck)}
+                />
               ))}
             </div>
           )}

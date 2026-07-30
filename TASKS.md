@@ -1169,6 +1169,30 @@ pattern as the two addenda above.
       behavior change — no new tests needed here). `npm run build` +
       `oxlint` clean.
 
+### Extra Training picker: unify "Your decks" / "Pre-built decks" styling
+Requested after a "these two sections look strange, inconsistent with
+each other" report — out of the numbered phase sequence, same pattern as
+the addenda above.
+- [x] New shared `DeckRow` component in `ExtraTrainingPicker.jsx`: title +
+      "N cards" on the left, Preview/Practice buttons on the right — used
+      for *every* row in both sections now, replacing "Your deck"'s old
+      enclosing box of plain pill-buttons (no Preview, "All my cards"/
+      each sub-deck as a single click-to-start button).
+- [x] "Your deck" → "Your decks" (plural), per explicit request.
+- [x] Own-deck/sub-deck rows gained a working **Preview** button — no
+      network call needed (the full card list, `english` included, is
+      already fetched via `GET /cards`), just opens the same preview
+      modal pre-built decks already used, filtered to that row's cards.
+- [x] Pre-built deck rows now say "N cards" instead of "N words" (the
+      only place in the app that called them words) — matches the new
+      shared `DeckRow` copy.
+- [x] Verified visually with the same throwaway `npm run dev` + Playwright
+      harness pattern (mocked auth/API, not committed) — both sections
+      render identically in light and dark, and the own-deck Preview
+      modal works. `oxlint` clean; no backend change, no test changes
+      needed (frontend-only, no new logic beyond the existing preview
+      modal reused as-is).
+
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every
 phase above (grade, flip, achievement/quest/level-up celebration,

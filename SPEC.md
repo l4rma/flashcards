@@ -218,22 +218,33 @@ defaulting to Ordered) applies to whichever source is started next — a
 plain in-memory Fisher-Yates shuffle of that source's card list right
 before building the queue, not persisted or seeded. Doesn't touch `Card`
 order anywhere else (Deck list, the real Train queue) — purely a
-practice-queue presentation choice. Below that, choose a source —
-- **All my cards** or **by sub-deck** (one button per distinct `label` in
-  use, both counts shown) — reuses the already-fetched `GET /cards`
-  response, no new endpoint.
-- **A pre-built deck** (`GET /prebuilt-decks`) — each listed with a
-  **Preview** button (fetches the full deck and opens a modal: title +
-  a scrollable list of just the English words, closable via its own ✕,
-  the "Close" button, or clicking outside — same modal pattern as the
-  achievement-detail popup) and a **Practice** button that fetches the
-  full deck and starts the session directly (shuffled first if selected).
+practice-queue presentation choice. Below that, two sections list every
+source as **identically-styled rows** — a shared `DeckRow` component,
+title + "N cards" on the left, **Preview**/**Practice** buttons on the
+right — per explicit request that "Your decks" and "Pre-built decks"
+shouldn't look different from each other (an earlier version gave "Your
+decks" its own enclosing box of plain pill-buttons and no Preview; that
+mismatch, plus pre-built rows saying "N words" while nothing else in the
+app calls cards "words," is exactly what got fixed):
+- **Your decks** — "All my cards" plus one row per distinct sub-deck
+  `label` in use, all reusing the already-fetched `GET /cards` response
+  (no new endpoint). **Preview** here needs no network call at all (the
+  full `CardOut` list, including `english`, is already in hand) — it
+  just opens the same preview modal pre-built decks use, filtered to that
+  row's cards. Disabled (both buttons) only when you have zero cards.
+- **Pre-built decks** (`GET /prebuilt-decks`) — **Preview** fetches the
+  full deck and opens the modal (title + a scrollable list of just the
+  English words, closable via its own ✕, the "Close" button, or clicking
+  outside — same modal pattern as the achievement-detail popup); this is
+  the one place preview is actually async, since pre-built card content
+  isn't fetched until asked for. **Practice** fetches the full deck and
+  starts the session directly (shuffled first if selected).
 
-Deliberately **not** styled with the Deck list's tilted-stack motif —
-that motif specifically reads as "your own physical pile of cards";
-pre-built decks are presented as a plain menu of rows instead, a small
-visual cue reinforcing that this is borrowed/browsable content, not
-something you own (consistent with them never entering `Cards`).
+The Deck list's own tilted-stack motif is still deliberately **not** used
+here for either section — that motif specifically reads as "your own
+physical pile of cards" at deck-browsing scale, not this flat "pick a
+source to practice" list — but "Your decks" and "Pre-built decks" no
+longer visually differ from *each other* the way they originally did.
 
 **Practice** (`PracticeSession.jsx`): a single linear pass through the
 chosen queue, once — **no requeue on Wrong**, unlike the real Train loop
