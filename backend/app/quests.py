@@ -6,6 +6,7 @@ from boto3.dynamodb.conditions import Key
 
 from app.database import QUEST_COMPLETIONS_TABLE, STATS_TABLE, Store, serialize_item
 from app.models import Stats
+from app.stats import logical_today
 
 ADD_CARDS_TARGET = 5
 # Always exactly 10, regardless of how many cards are due today — a
@@ -88,7 +89,7 @@ def check_and_complete_quests(store: Store, user_id: str, stats: Stats, today: d
     what actually gates the reward to "once per quest per day" — the
     underlying progress counters can keep climbing past the target the
     rest of the day without re-awarding."""
-    today = today or date.today()
+    today = today or logical_today()
     already_completed_today = _completed_today(store, user_id, today)
 
     newly_completed = [
@@ -162,7 +163,7 @@ def check_and_award_daily_bonus(store: Store, user_id: str, stats: Stats, today:
     conceptually in collection.py, touched directly here rather than
     importing it, mirroring how achievements.py/quests.py's own reward
     transactions already touch `xp` (owned by leveling.py) directly."""
-    today = today or date.today()
+    today = today or logical_today()
     if stats.daily_quest_bonus_awarded:
         return False
     completed_today = _completed_today(store, user_id, today)
@@ -198,7 +199,7 @@ def describe_quests(keys: list[str]) -> list[dict]:
 
 
 def list_quests(store: Store, user_id: str, stats: Stats, today: date | None = None) -> list[dict]:
-    today = today or date.today()
+    today = today or logical_today()
     completed_today = _completed_today(store, user_id, today)
     return [
         {

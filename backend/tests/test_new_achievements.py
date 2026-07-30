@@ -177,6 +177,38 @@ def test_title_and_theme_collector_targets_match_current_catalog():
     assert achievements["theme_collector"].target == len(THEMES)
 
 
+def test_get_stats_exposes_daily_counters(client):
+    card = client.post("/cards", json={"french": "chat", "english": "cat"}).json()
+    client.post(f"/cards/{card['id']}/grade", json={"grade": "wrong"})
+    client.post("/practice/completed", json={"source": "own_deck"})
+
+    stats = client.get("/stats").json()
+    assert stats["quest_cards_added_today"] == 1
+    assert stats["wrong_today"] == 1
+    assert stats["practice_sessions_today"] == 1
+
+
+def test_practice_completed_three_times_unlocks_practice_day(client):
+    unlocked_keys = set()
+    for _ in range(3):
+        resp = client.post("/practice/completed", json={"source": "own_deck"})
+        unlocked_keys |= {a["key"] for a in resp.json()["newly_unlocked_achievements"]}
+    assert "daily_practice_3" in unlocked_keys
+
+
+def test_reset_all_progress_clears_daily_counters(client):
+    card = client.post("/cards", json={"french": "chat", "english": "cat"}).json()
+    client.post(f"/cards/{card['id']}/grade", json={"grade": "wrong"})
+    client.post("/practice/completed", json={"source": "own_deck"})
+
+    client.post("/reset-all-progress")
+
+    stats = client.get("/stats").json()
+    assert stats["wrong_today"] == 0
+    assert stats["practice_sessions_today"] == 0
+    assert stats["quest_cards_added_today"] == 0
+
+
 def test_level_family_step_matches_leveling_constant():
     # Sanity check that the achievement tiers (5/10/25/50) are expressed
     # in the same unit as Stats.level itself, not xp.

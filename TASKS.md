@@ -1059,6 +1059,55 @@ User-requested, fixed together.
       else. New `TextStat` component in `ProfilePage.jsx` backs it.
 - [x] 193 backend tests passing. `npm run build` + `oxlint` clean.
 
+### Daily stats box, due-tomorrow, and daily achievements
+Requested after Phase 14 shipped, out of the numbered phase sequence —
+same pattern as the "Achievements for practice, leveling, collection,
+profile, and labels" addendum above.
+- [x] Unified the app's day-rollover boundary: `stats.logical_today()`
+      (3am Europe/Oslo, `zoneinfo`, no new dependency) replaces
+      `date.today()` (UTC midnight) for daily quests, the streak
+      (`last_active_date`), and the two new daily counters below — a
+      single "gamification day" concept end to end, per explicit request.
+      Mirrored client-side in `streak.js`'s `logicalToday()` (used by
+      `trainedToday`'s 🔥 lit-state check, which shares this boundary
+      now). **Deliberately excludes** `session_date`/`session_initial_due`
+      (the Train page's due-count freeze) and `Card.due_date` itself —
+      both stay UTC-anchored, since `Card.due_date` is UTC-bucketed
+      (Open decisions #1) and a due-count freeze needs to agree with
+      that bucket, not the Oslo-shifted day. Documented, accepted,
+      self-correcting edge case during the ~1-2 hour UTC/Oslo gap — see
+      `stats.sync_day`'s docstring.
+- [x] `Stats` gains `wrong_today`/`practice_sessions_today` (join the
+      existing `quest_cards_added_today`/`quest_correct_today`), all four
+      reset together in `sync_day` on gamification-day rollover, and by
+      "Reset all progress" (progress, not identity — same policy as
+      everything else added since Phase 10). Exposed via `GET /stats`
+      (`StatsOut`) for the Profile page's new box below.
+- [x] `POST /practice/completed` now also calls `stats.sync_day` (it
+      didn't before) and increments `practice_sessions_today`.
+- [x] Profile page's existing Lifetime stats box gained a second
+      `label │ value` grid below a divider, **same box**, headed "Daily
+      stats" (per explicit request, not a separate card): added/
+      reviewed/correct/wrong/accuracy today, practice rounds today, and
+      due tomorrow. Labeled **Correct**/**Wrong** rather than the
+      Lifetime section's Learned/Practiced naming, since "Practiced"
+      would collide with Extra Training's own "practice round" wording
+      two rows below in the same box.
+- [x] "Due tomorrow" is a live client-side count (cards from the
+      already-fetched `GET /cards` list whose `due_date` equals
+      UTC-tomorrow) — not a resetting counter, no new endpoint.
+- [x] Three new standalone achievements reading the daily counters
+      directly, no new tracking fields needed (the achievement unlock
+      record itself is what makes it permanent): "Big Day" (🗓️, 10 cards
+      added in a day), "Study Day" (📊, 30 reviewed in a day), "Practice
+      Day" (🔂, 3 Extra Training rounds in a day).
+- [x] New tests: `logical_today`'s 3am/DST boundary (winter + summer),
+      `wrong_today`/`practice_sessions_today` increment + reset, the
+      three new achievements (including that they stay unlocked after
+      the underlying daily counter resets), and `GET /stats`/
+      reset-all-progress coverage of the new fields. 205 backend tests
+      passing. `oxlint` clean.
+
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every
 phase above (grade, flip, achievement/quest/level-up celebration,

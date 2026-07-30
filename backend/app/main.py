@@ -1,5 +1,3 @@
-from datetime import date
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
@@ -115,7 +113,7 @@ def create_card(
 ):
     card = cards_mod.create_card(store, user_id, payload.french, payload.english, label=payload.label)
 
-    today = date.today()
+    today = stats_mod.logical_today()
     stats = stats_mod.get_or_create_stats(store, user_id)
     # sync_day's due-count query must run after create_card's put_item
     # above so a freeze happening today already reflects this new card
@@ -204,7 +202,7 @@ def grade_card(
     newly_mastered = apply_grade(card, payload.grade)
     cards_mod.save_card(store, card)
 
-    today = date.today()
+    today = stats_mod.logical_today()
     stats = stats_mod.get_or_create_stats(store, user_id)
     stats_mod.sync_day(store, user_id, stats, today)
     stats_mod.record_training_activity(stats, payload.grade, today=today)
@@ -233,7 +231,7 @@ def grade_card(
 @app.get("/stats", response_model=StatsOut)
 def read_stats(store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)):
     stats = stats_mod.get_or_create_stats(store, user_id)
-    stats_mod.sync_day(store, user_id, stats, date.today())
+    stats_mod.sync_day(store, user_id, stats, stats_mod.logical_today())
     stats_mod.save_stats(store, stats)
     return StatsOut.model_validate(stats)
 
@@ -307,7 +305,7 @@ def read_achievements(store: Store = Depends(get_store), user_id: str = Depends(
 @app.get("/quests", response_model=list[QuestOut])
 def read_quests(store: Store = Depends(get_store), user_id: str = Depends(get_current_user_id)):
     stats = stats_mod.get_or_create_stats(store, user_id)
-    stats_mod.sync_day(store, user_id, stats, date.today())
+    stats_mod.sync_day(store, user_id, stats, stats_mod.logical_today())
     stats_mod.save_stats(store, stats)
     return quests_mod.list_quests(store, user_id, stats)
 
@@ -413,7 +411,9 @@ def practice_completed(
     section) — an achievement's own one-time reward on unlock is a
     separate thing, same as every other achievement in this app."""
     stats = stats_mod.get_or_create_stats(store, user_id)
+    stats_mod.sync_day(store, user_id, stats, stats_mod.logical_today())
     stats.practice_sessions_completed += 1
+    stats.practice_sessions_today += 1
     if payload.source == PracticeSource.prebuilt:
         stats.practiced_prebuilt_deck = True
     elif payload.source == PracticeSource.own_deck:

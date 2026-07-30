@@ -335,7 +335,7 @@ sink.
 | `coins`            | int           | Running total, earned from training        |
 | `current_streak`   | int           | Consecutive days with at least one grade    |
 | `longest_streak`   | int           | High-water mark of `current_streak`         |
-| `last_active_date` | date, nullable| Last UTC date any card was graded           |
+| `last_active_date` | date, nullable| Last *gamification day* (see `quest_date` below — this now shares that same day boundary, not a plain UTC date) any card was graded |
 | `current_correct_streak` | int     | Consecutive Correct grades; any Wrong resets to 0 |
 | `longest_correct_streak` | int     | High-water mark of `current_correct_streak` — used by the "correct in a row" achievement family, never reset by admin actions |
 | `session_had_wrong` | bool | Any Wrong since the last session completion (or start of day)? Reset in `sync_session` (new day) and again in `award_session_complete` (fresh check per completion) |
@@ -344,9 +344,11 @@ sink.
 | `comebacks` | int | Lifetime count of "graded Wrong, then Correct" on a card's next grade |
 | `cards_mastered` | int | Lifetime count of cards that have ever crossed `scheduling.MASTERY_THRESHOLD_DAYS` (64) |
 | `trained_before_7am` / `trained_after_11pm` | bool | One-time flags based on local wall-clock time at grading — for Early Bird (4am–7am) / Night Owl (11pm–4am, spans midnight) |
-| `quest_date` | date, nullable | Last calendar date the daily-quest fields were synced — mirrors `session_date`'s freeze-once-per-day pattern |
-| `quest_cards_added_today` | int | Cards added today via `POST /cards` — backs the "Deck Builder" quest. Incremented only on the actual add action (not derived from `Card.created_at`), reset to 0 on day rollover |
-| `quest_correct_today` | int | Correct grades today — backs the "Daily Training" quest, whose target is `min(10, session_initial_due)` so it counts down identically to the Train page's own progress bar. Reset to 0 on day rollover |
+| `quest_date` | date, nullable | Last *gamification day* the daily-quest fields (and, since Phase 15, `wrong_today`/`practice_sessions_today` below) were synced — see `stats.logical_today`: 3am Europe/Oslo, not UTC midnight or `session_date`'s own UTC-anchored freeze (see Daily stats, below, for why these two "today"s deliberately differ) |
+| `quest_cards_added_today` | int | Cards added today via `POST /cards` — backs the "Deck Builder" quest and the Profile page's "Added today" daily stat. Incremented only on the actual add action (not derived from `Card.created_at`), reset to 0 on gamification-day rollover |
+| `quest_correct_today` | int | Correct grades today — backs the "Daily Training" quest and the Profile page's "Correct today"/"Reviewed today" daily stats, whose target is `min(10, session_initial_due)` so it counts down identically to the Train page's own progress bar. Reset to 0 on gamification-day rollover |
+| `wrong_today` | int | Wrong grades today — backs the Profile page's "Wrong today"/"Reviewed today"/"Accuracy today" daily stats and the "Study Day" achievement. Reset alongside `quest_*_today` above (Phase 15) |
+| `practice_sessions_today` | int | Extra Training rounds completed today — backs the Profile page's "Practice rounds today" daily stat and the "Practice Day" achievement. Reset alongside `quest_*_today` above (Phase 15) |
 | `total_cards` | int | Running count of cards ever created — backs the deck-size achievement family. A `Stats` counter (not a live count of the `Cards` table), since DynamoDB has no `COUNT` query; incremented on `POST /cards`. **Not** reset by "reset all progress" (mirrors the pre-DynamoDB behavior: that action never deleted cards, so this shouldn't drop either) |
 | `total_correct` / `total_wrong` | int | Running lifetime counts — back the "lifetime correct answers" achievement family and "First Steps"/"Nobody's Perfect". Replaced a live `SUM(Card.times_correct)`-style aggregate for the same DynamoDB reason; incremented in the same `record_training_activity` call that updates every other per-grade counter. Reset by "reset all progress" (unlike `total_cards`) |
 
@@ -920,6 +922,58 @@ every other box on this page uses at least one icon or the display font
 for its numbers, this one intentionally uses neither. `TextStat` in
 `ProfilePage.jsx` is the (new, local-only) component backing these rows;
 it does not share `Stat`'s icon/font-display shape on purpose.
+
+**Daily stats** (Phase 15): a second `label │ value` grid in the *same*
+box, below a `border-t` divider and its own "Daily stats" sub-heading —
+per explicit request to extend the existing Lifetime stats box rather
+than add a whole separate card. Seven rows: added today
+(`quest_cards_added_today`), reviewed today (`quest_correct_today +
+wrong_today`), correct today (`quest_correct_today`), wrong today
+(`wrong_today`), accuracy today (same null-when-zero-reviewed handling as
+lifetime accuracy), practice rounds today (`practice_sessions_today`,
+Extra Training rounds completed), and due tomorrow. Labeled plainly
+**Correct**/**Wrong** rather than reusing the Lifetime box's
+Learned/Practiced naming — "Practiced" would collide with Extra
+Training's own "practice round" terminology sitting two rows below it in
+the same box, so the two sections deliberately use different vocabulary
+for the same correct/wrong concept.
+
+All four counters reset once per **gamification day** — 3am Europe/Oslo
+local time, not UTC midnight — via `stats.logical_today()`, computed
+server-side (Lambda has no per-user timezone, so this is a fixed zone,
+not derived from the request) and mirrored client-side by
+`streak.js`'s `logicalToday()` (used for `trainedToday`'s 🔥 lit-state
+check too, since both now share this boundary — see Rules and
+conventions in `CLAUDE.md`). This *replaces* the old UTC-midnight
+boundary daily quests and the streak previously used — a deliberate
+unification (explicit request) so the app has one "day" concept for
+gamification instead of two. **Deliberately excludes** `session_date`/
+`session_initial_due` (the Train page's due-count freeze) and
+`Card.due_date` itself, both of which stay anchored to the actual UTC
+calendar date — the due-count freeze because it's fundamentally a
+snapshot of `Card.due_date`, which is *itself* UTC-bucketed (see Open
+decisions #1) and would disagree with an Oslo-shifted freeze during the
+~1-2 hour gap between UTC midnight and 3am Oslo. Accepted, documented,
+self-correcting edge case (see `stats.sync_day`'s docstring) rather than
+threading a second "today" parameter through it for a personal app.
+
+**Due tomorrow** is not itself a resetting counter (it's a live count,
+recomputed fresh on every load) — cards from the already-fetched
+`GET /cards` list whose `due_date` equals UTC-tomorrow, computed
+client-side with no new endpoint. Grouped into the Daily stats section
+because it answers the same "what does today/tomorrow look like"
+question as the rest of the box, even though it doesn't roll over the
+same way.
+
+Three new standalone achievements read these same daily counters
+directly (see Achievements, below): "Big Day" (10 cards added in a day),
+"Study Day" (30 reviewed in a day), "Practice Day" (3 Extra Training
+rounds in a day). Each unlocks the moment its counter crosses the target
+within a single gamification day and then stays unlocked permanently
+(recorded in `Achievements`, same as every other achievement) even
+though the underlying counter resets the next day — no new tracking
+field needed, unlike e.g. `longest_streak`'s explicit high-water mark,
+since the permanence already lives in the unlock record itself.
 
 Then the achievement grid below — one tile per
 `GET /achievements` entry (badge + title), unlocked ones full color, locked

@@ -98,6 +98,12 @@ class Stats:
     quest_date: date | None = None
     quest_cards_added_today: int = 0
     quest_correct_today: int = 0
+    # Wrong grades today / Extra Training rounds completed today — reset
+    # alongside the quest counters above (same quest_date rollover), not
+    # backing any quest themselves, just the Profile page's Daily stats
+    # box and the daily_review_30/daily_practice_3 achievements.
+    wrong_today: int = 0
+    practice_sessions_today: int = 0
     # Whether the "complete every quest today" bonus lootbox has already
     # been granted today — gates it to once/day the same way a
     # QuestCompletions row gates each individual quest's own coin reward.

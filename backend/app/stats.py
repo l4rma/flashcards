@@ -1,4 +1,5 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from app.cards import count_due
 from app.database import Store
@@ -14,6 +15,30 @@ SESSION_COMPLETE_BONUS = 10
 EARLY_BIRD_START_HOUR = 4
 EARLY_BIRD_HOUR = 7
 NIGHT_OWL_HOUR = 23
+
+# The "gamification day" (streaks, daily quests, the Profile page's Daily
+# stats box) rolls over at 3am Europe/Oslo local time, not UTC midnight —
+# picked by explicit request so a late-night session past midnight still
+# counts toward "today" (the classic spaced-repetition-app day-cutoff
+# convention, e.g. Anki's default 4am). Lambda has no per-user timezone,
+# so this is a fixed zone rather than something derived from the request.
+# Deliberately distinct from Card.due_date's own UTC-midnight day
+# granularity (see SPEC.md's Open decisions #1) — that's schedule
+# bucketing and stays untouched by this.
+GAMIFICATION_TZ = ZoneInfo("Europe/Oslo")
+DAY_START_HOUR = 3
+
+
+def logical_today(now: datetime | None = None) -> date:
+    """The gamification-day boundary described above. `now` defaults to
+    the real current time (assumed UTC if naive, matching Lambda's own
+    unset-TZ wall clock) but takes an explicit override for testability,
+    same convention as every other date-dependent function in this app."""
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    local = now.astimezone(GAMIFICATION_TZ)
+    return (local - timedelta(hours=DAY_START_HOUR)).date()
 
 
 def _stats_to_item(stats: Stats) -> dict:
@@ -46,6 +71,8 @@ def _stats_to_item(stats: Stats) -> dict:
         "quest_date": _d(stats.quest_date),
         "quest_cards_added_today": stats.quest_cards_added_today,
         "quest_correct_today": stats.quest_correct_today,
+        "wrong_today": stats.wrong_today,
+        "practice_sessions_today": stats.practice_sessions_today,
         "daily_quest_bonus_awarded": stats.daily_quest_bonus_awarded,
         "total_cards": stats.total_cards,
         "total_correct": stats.total_correct,
@@ -96,6 +123,8 @@ def _item_to_stats(item: dict) -> Stats:
         quest_date=_d(item.get("quest_date")),
         quest_cards_added_today=int(item.get("quest_cards_added_today", 0)),
         quest_correct_today=int(item.get("quest_correct_today", 0)),
+        wrong_today=int(item.get("wrong_today", 0)),
+        practice_sessions_today=int(item.get("practice_sessions_today", 0)),
         daily_quest_bonus_awarded=bool(item.get("daily_quest_bonus_awarded", False)),
         total_cards=int(item.get("total_cards", 0)),
         total_correct=int(item.get("total_correct", 0)),
@@ -140,8 +169,20 @@ def sync_day(store: Store, user_id: str, stats: Stats, today: date | None = None
     strongly-consistent reads on GSIs — immediately after adding a card,
     this could in rare cases briefly under-count by one before the index
     catches up. Accepted as a minor, self-correcting cosmetic edge case
-    rather than engineering around it."""
-    today = today or date.today()
+    rather than engineering around it.
+
+    `today` defaults to logical_today() (3am Europe/Oslo, see above) — the
+    same day boundary now used for the due-count freeze below *and* the
+    quest counters, per explicit request to unify them into one "day"
+    concept rather than keep the due-count freeze on its old UTC-midnight
+    boundary. Accepted trade-off: Card.due_date itself stays UTC-bucketed
+    (unrelated, unchanged — see SPEC.md's Open decisions #1), so during
+    the ~1-2 hour gap between UTC midnight and 3am Oslo, a due-count
+    freeze triggered in that window could under-count by whatever just
+    crossed into today's UTC due-date bucket. Same self-correcting-edge-
+    case tier as the GSI note above, not worth a second "today" parameter
+    for."""
+    today = today or logical_today()
     if stats.session_date != today:
         due_count_today = count_due(store, user_id, today)
         stats.session_date = today
@@ -151,6 +192,8 @@ def sync_day(store: Store, user_id: str, stats: Stats, today: date | None = None
         stats.quest_date = today
         stats.quest_cards_added_today = 0
         stats.quest_correct_today = 0
+        stats.wrong_today = 0
+        stats.practice_sessions_today = 0
         stats.daily_quest_bonus_awarded = False
     return stats
 
@@ -158,7 +201,7 @@ def sync_day(store: Store, user_id: str, stats: Stats, today: date | None = None
 def record_training_activity(
     stats: Stats, grade: Grade, today: date | None = None, now: datetime | None = None
 ) -> Stats:
-    today = today or date.today()
+    today = today or logical_today()
     now = now or datetime.now()
 
     if stats.last_active_date is None or stats.last_active_date == today - timedelta(days=1):
@@ -181,6 +224,7 @@ def record_training_activity(
         stats.current_correct_streak = 0
         stats.session_had_wrong = True
         stats.total_wrong += 1
+        stats.wrong_today += 1
 
     if EARLY_BIRD_START_HOUR <= now.hour < EARLY_BIRD_HOUR:
         stats.trained_before_7am = True
@@ -246,6 +290,8 @@ def reset_all_stats(stats: Stats) -> Stats:
     stats.quest_date = None
     stats.quest_cards_added_today = 0
     stats.quest_correct_today = 0
+    stats.wrong_today = 0
+    stats.practice_sessions_today = 0
     stats.daily_quest_bonus_awarded = False
     stats.total_correct = 0
     stats.total_wrong = 0

@@ -1,10 +1,11 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.models import Stats
 from app.schemas import Grade
 from app.stats import (
     SESSION_COMPLETE_BONUS,
     award_session_complete,
+    logical_today,
     record_card_mastered,
     record_comeback,
     record_training_activity,
@@ -287,6 +288,42 @@ def test_sync_day_resets_on_a_new_day(store):
 
     assert stats.session_initial_due == 0  # no cards due for this fresh user
     assert stats.session_date == yesterday + timedelta(days=1)
+
+
+def test_wrong_grade_increments_wrong_today():
+    stats = make_stats()
+    today = date(2026, 1, 10)
+
+    record_training_activity(stats, Grade.correct, today=today)
+    record_training_activity(stats, Grade.wrong, today=today)
+    record_training_activity(stats, Grade.wrong, today=today)
+
+    assert stats.wrong_today == 2
+
+
+def test_sync_day_resets_wrong_today_and_practice_sessions_today_on_a_new_gamification_day(store):
+    stats = make_stats(quest_date=date(2026, 1, 10), wrong_today=3, practice_sessions_today=2)
+
+    sync_day(store, TEST_USER_ID, stats)  # today defaults to the real logical_today(), unlike quest_date above
+
+    assert stats.wrong_today == 0
+    assert stats.practice_sessions_today == 0
+
+
+def test_logical_today_rolls_over_at_3am_oslo_not_utc_midnight():
+    # Winter (CET, UTC+1): 3am Oslo == 2am UTC.
+    assert logical_today(datetime(2026, 1, 10, 1, 30, tzinfo=timezone.utc)) == date(2026, 1, 9)
+    assert logical_today(datetime(2026, 1, 10, 3, 30, tzinfo=timezone.utc)) == date(2026, 1, 10)
+
+
+def test_logical_today_accounts_for_oslo_dst():
+    # Summer (CEST, UTC+2): 3am Oslo == 1am UTC.
+    assert logical_today(datetime(2026, 7, 10, 0, 30, tzinfo=timezone.utc)) == date(2026, 7, 9)
+    assert logical_today(datetime(2026, 7, 10, 1, 30, tzinfo=timezone.utc)) == date(2026, 7, 10)
+
+
+def test_logical_today_treats_naive_datetimes_as_utc():
+    assert logical_today(datetime(2026, 1, 10, 1, 30)) == date(2026, 1, 9)
 
 
 def test_reset_all_stats_clears_everything():

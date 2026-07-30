@@ -181,6 +181,12 @@ class StatsOut(BaseModel):
     longest_streak: int
     last_active_date: date | None
     session_initial_due: int
+    # Daily-scoped counters (reset every gamification day, see
+    # stats.logical_today) backing the Profile page's Daily stats box.
+    quest_cards_added_today: int
+    quest_correct_today: int
+    wrong_today: int
+    practice_sessions_today: int
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_leveled_up: list[LevelUpNotice] = []
 

@@ -308,6 +308,25 @@ ACHIEVEMENTS: list[AchievementDef] = [
         "practice_100", "Practice Master", "Complete 100 practice rounds.", "📖", 100,
         lambda stats: stats.practice_sessions_completed, family="practice",
     ),
+    # --- Daily stats (Phase 15) ---
+    # These read the same daily counters the Profile page's Daily stats box
+    # displays (reset every gamification day, see stats.logical_today) —
+    # unlocking the first time that counter reaches the target within a
+    # single day. The unlock itself is permanent (recorded in Achievements,
+    # same as every other achievement) even though the underlying counter
+    # resets the next day.
+    AchievementDef(
+        "daily_add_10", "Big Day", "Add 10 cards in a single day.", "🗓️", 10,
+        lambda stats: stats.quest_cards_added_today, coin_reward=20,
+    ),
+    AchievementDef(
+        "daily_review_30", "Study Day", "Review 30 cards in a single day.", "📊", 30,
+        lambda stats: stats.quest_correct_today + stats.wrong_today, coin_reward=20,
+    ),
+    AchievementDef(
+        "daily_practice_3", "Practice Day", "Complete 3 Extra Training rounds in a single day.", "🔂", 3,
+        lambda stats: stats.practice_sessions_today, coin_reward=20,
+    ),
 ]
 
 

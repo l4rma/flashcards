@@ -302,6 +302,44 @@ def test_marathon_ladder(store):
     assert "marathon_200" not in unlocked
 
 
+def test_daily_add_10_achievement_reads_quest_cards_added_today(store):
+    stats = make_stats(quest_cards_added_today=10)
+
+    unlocked = check_and_unlock_achievements(store, TEST_USER_ID, stats)
+
+    assert "daily_add_10" in unlocked
+
+
+def test_daily_review_30_achievement_sums_correct_and_wrong_today(store):
+    stats = make_stats(quest_correct_today=20, wrong_today=10)
+
+    unlocked = check_and_unlock_achievements(store, TEST_USER_ID, stats)
+
+    assert "daily_review_30" in unlocked
+
+
+def test_daily_practice_3_achievement_reads_practice_sessions_today(store):
+    stats = make_stats(practice_sessions_today=3)
+
+    unlocked = check_and_unlock_achievements(store, TEST_USER_ID, stats)
+
+    assert "daily_practice_3" in unlocked
+
+
+def test_daily_achievements_stay_unlocked_after_the_counter_resets(store):
+    """The unlock is permanent (recorded in Achievements), even though the
+    underlying daily counter it read is reset to 0 the next gamification
+    day — see SPEC.md's Daily stats section."""
+    stats = make_stats(quest_cards_added_today=10)
+    check_and_unlock_achievements(store, TEST_USER_ID, stats)
+
+    stats.quest_cards_added_today = 0  # simulates the next day's sync_day rollover
+    achievements = list_achievements(store, TEST_USER_ID, stats)
+    daily_add = next(a for a in achievements if a["key"] == "daily_add_10")
+
+    assert daily_add["unlocked"] is True
+
+
 def test_unlocking_an_achievement_awards_its_coin_reward(store):
     stats = make_stats(longest_streak=7)  # unlocks streak_7 only
 

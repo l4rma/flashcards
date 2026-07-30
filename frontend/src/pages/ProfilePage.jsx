@@ -60,6 +60,20 @@ export default function ProfilePage() {
   const totalGrades = totalCorrect + totalWrong;
   const accuracy = totalGrades > 0 ? Math.round((totalCorrect / totalGrades) * 100) : null;
   const masteredCount = cards.filter((c) => c.mastered).length;
+
+  // Daily stats — reset every gamification day (3am Europe/Oslo, see
+  // streak.js's logicalToday), unlike the lifetime figures above.
+  const correctToday = stats.quest_correct_today;
+  const wrongToday = stats.wrong_today;
+  const reviewedToday = correctToday + wrongToday;
+  const accuracyToday = reviewedToday > 0 ? Math.round((correctToday / reviewedToday) * 100) : null;
+  // Card.due_date is bucketed by UTC calendar day (unrelated to the 3am
+  // Oslo gamification boundary above — see SPEC.md's Open decisions #1),
+  // so "tomorrow" here is computed in UTC to match.
+  const tomorrowUTC = new Date();
+  tomorrowUTC.setUTCDate(tomorrowUTC.getUTCDate() + 1);
+  const tomorrowIso = tomorrowUTC.toISOString().slice(0, 10);
+  const dueTomorrow = cards.filter((c) => c.due_date === tomorrowIso).length;
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
   const equippedTitle = collection.titles.find((t) => t.equipped);
   const totalLootboxes = collection.lootboxes.reduce((sum, b) => sum + b.count, 0);
@@ -153,6 +167,19 @@ export default function ProfilePage() {
           <TextStat label="Practiced" value={totalWrong} />
           <TextStat label="Accuracy" value={accuracy === null ? "—" : `${accuracy}%`} />
           <TextStat label="Mastered" value={masteredCount} />
+        </dl>
+
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-soft border-t border-primary-light/60 pt-4">
+          Daily stats
+        </h2>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <TextStat label="Added today" value={stats.quest_cards_added_today} />
+          <TextStat label="Reviewed today" value={reviewedToday} />
+          <TextStat label="Correct today" value={correctToday} />
+          <TextStat label="Wrong today" value={wrongToday} />
+          <TextStat label="Accuracy today" value={accuracyToday === null ? "—" : `${accuracyToday}%`} />
+          <TextStat label="Practice rounds today" value={stats.practice_sessions_today} />
+          <TextStat label="Due tomorrow" value={dueTomorrow} />
         </dl>
       </div>
 
