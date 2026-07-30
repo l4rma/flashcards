@@ -212,7 +212,13 @@ on Train — deliberately a **separate mode** within `TrainPage.jsx`
 since it never touches `Card` scheduling or any gamification state (see
 Open decisions #14).
 
-**Picker** (`ExtraTrainingPicker.jsx`): choose a source —
+**Picker** (`ExtraTrainingPicker.jsx`): an **Ordered / Shuffled** segmented
+toggle at the top (same two-state pill pattern as `ThemeToggle.jsx`,
+defaulting to Ordered) applies to whichever source is started next — a
+plain in-memory Fisher-Yates shuffle of that source's card list right
+before building the queue, not persisted or seeded. Doesn't touch `Card`
+order anywhere else (Deck list, the real Train queue) — purely a
+practice-queue presentation choice. Below that, choose a source —
 - **All my cards** or **by sub-deck** (one button per distinct `label` in
   use, both counts shown) — reuses the already-fetched `GET /cards`
   response, no new endpoint.
@@ -221,7 +227,7 @@ Open decisions #14).
   a scrollable list of just the English words, closable via its own ✕,
   the "Close" button, or clicking outside — same modal pattern as the
   achievement-detail popup) and a **Practice** button that fetches the
-  full deck and starts the session directly.
+  full deck and starts the session directly (shuffled first if selected).
 
 Deliberately **not** styled with the Deck list's tilted-stack motif —
 that motif specifically reads as "your own physical pile of cards";

@@ -5,11 +5,32 @@ function toQueue(cards) {
   return cards.map((c, i) => ({ id: c.id ?? `prebuilt-${i}`, english: c.english, french: c.french }));
 }
 
+// Fisher-Yates — order only needs to be scrambled for the practice queue
+// itself, not persisted or reproducible, so no seed handling.
+function shuffle(cards) {
+  const result = [...cards];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+const ORDER_OPTIONS = [
+  { key: "ordered", label: "Ordered" },
+  { key: "shuffled", label: "Shuffled" },
+];
+
 export default function ExtraTrainingPicker({ onStart, onClose }) {
   const [cards, setCards] = useState(null);
   const [prebuiltDecks, setPrebuiltDecks] = useState(null);
   const [preview, setPreview] = useState(null); // { title, cards } | null
   const [pendingKey, setPendingKey] = useState(null); // deck key currently loading (preview or practice)
+  const [order, setOrder] = useState("ordered");
+
+  function orderCards(list) {
+    return order === "shuffled" ? shuffle(list) : list;
+  }
 
   useEffect(() => {
     listCards().then(setCards);
@@ -31,7 +52,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
     setPendingKey(deck.key);
     try {
       const full = await getPrebuiltDeck(deck.key);
-      onStart(toQueue(full.cards), full.title, "prebuilt");
+      onStart(toQueue(orderCards(full.cards)), full.title, "prebuilt");
     } finally {
       setPendingKey(null);
     }
@@ -54,6 +75,22 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
         </button>
       </div>
 
+      <div className="w-full max-w-sm flex bg-background rounded-full p-1 gap-1">
+        {ORDER_OPTIONS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setOrder(key)}
+            aria-pressed={order === key}
+            className={`flex-1 rounded-full py-2 text-sm font-bold transition active:scale-95 ${
+              order === key ? "bg-primary text-white" : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {cards === null || prebuiltDecks === null ? (
         <p className="text-center py-10 text-ink-soft">Loading…</p>
       ) : (
@@ -63,7 +100,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
             <button
               type="button"
               disabled={cards.length === 0}
-              onClick={() => onStart(toQueue(cards), "All my cards", "own_deck")}
+              onClick={() => onStart(toQueue(orderCards(cards)), "All my cards", "own_deck")}
               className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-3 disabled:opacity-40"
             >
               All my cards ({cards.length})
@@ -74,7 +111,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
                 <button
                   key={l}
                   type="button"
-                  onClick={() => onStart(toQueue(inLabel), l, "sub_deck")}
+                  onClick={() => onStart(toQueue(orderCards(inLabel)), l, "sub_deck")}
                   className="rounded-full bg-primary-light hover:bg-primary/20 text-primary-dark font-bold py-3 transition"
                 >
                   {l} ({inLabel.length})

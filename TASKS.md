@@ -907,6 +907,13 @@ No dependency on Phases 9-12.
       React-key use only.
 - [x] Frontend-only phase, no backend changes — 167 backend tests still
       passing unchanged. `npm run build` + `oxlint` clean.
+- [x] `ExtraTrainingPicker.jsx` gained an **Ordered / Shuffled** toggle
+      (same two-pill segmented-control pattern as `ThemeToggle.jsx`,
+      defaulting to Ordered) at the top of the picker, applying to
+      whichever source is started next — a plain in-memory Fisher-Yates
+      shuffle right before `toQueue`, frontend-only, no backend/API
+      change (mirrors "Session queue logic lives in the frontend" for the
+      real Train loop). `oxlint` clean.
 
 ### Achievements for practice, leveling, collection, profile, and labels
 Requested after Phase 14 shipped — 13 new achievement tiers covering
