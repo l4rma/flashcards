@@ -110,7 +110,7 @@ export default function SettingsPage({ onChanged, onAchievementsUnlocked, onLeve
       </h1>
 
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Profile</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Profile</p>
 
         {profileLoaded && (
           <>
@@ -162,12 +162,12 @@ export default function SettingsPage({ onChanged, onAchievementsUnlocked, onLeve
       </div>
 
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Appearance</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Appearance</p>
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Account</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Account</p>
         <button
           type="button"
           onClick={() => setPasswordModalOpen(true)}
@@ -191,7 +191,7 @@ export default function SettingsPage({ onChanged, onAchievementsUnlocked, onLeve
         <button
           type="button"
           onClick={handleDeleteAllCards}
-          className="rounded-full bg-wrong hover:bg-wrong-dark active:scale-95 transition text-white font-bold py-3"
+          className="rounded-full bg-wrong hover:brightness-90 active:scale-95 transition text-white font-bold py-3"
         >
           Delete ALL cards
         </button>
@@ -254,7 +254,7 @@ export default function SettingsPage({ onChanged, onAchievementsUnlocked, onLeve
               />
               <button
                 type="submit"
-                className="mt-1 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-2.5"
+                className="mt-1 rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold py-2.5"
               >
                 Change password
               </button>

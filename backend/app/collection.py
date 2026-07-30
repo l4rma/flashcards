@@ -19,13 +19,23 @@ class ThemeDef:
     name: str
     rarity: str
     # CSS custom-property overrides applied at the document root when this
-    # theme is equipped (see frontend/src/theme.js) — deliberately not
-    # duplicated as a second color list in the frontend the way avatars.js
-    # mirrors AVATAR_KEYS: colors are richer here (3 values + an optional
-    # font) and only ever needed for the *equipped* theme at a time, so the
-    # backend stays the single source of truth and the frontend just
-    # applies whatever GET /collection says is equipped.
+    # theme is equipped (see frontend/src/collectionTheme.js) —
+    # deliberately not duplicated as a second color list in the frontend
+    # the way avatars.js mirrors AVATAR_KEYS: colors are richer here (3
+    # values × 2 modes + an optional font) and only ever needed for the
+    # *equipped* theme at a time, so the backend stays the single source
+    # of truth and the frontend just applies whatever GET /collection says
+    # is equipped.
+    #
+    # Two separate light/dark color sets, not one shared triple — each was
+    # solved independently against WCAG AA (see index.css's dark-theme
+    # comment for the audit that found the single-triple design failing
+    # badly: a light-mode-tuned `primary-dark` used as text against a dark
+    # page could fall as low as 1.33:1). `collectionTheme.js` picks
+    # whichever set matches the current light/dark toggle and re-applies
+    # automatically when that toggle changes.
     colors: dict[str, str]
+    colors_dark: dict[str, str]
     font_display: str | None = None
 
 
@@ -46,32 +56,39 @@ TITLES: list[TitleDef] = [
 THEMES: list[ThemeDef] = [
     ThemeDef(
         "ocean", "Ocean Blue", "common",
-        {"primary": "#3B82C4", "primary-dark": "#2F68A0", "primary-light": "#DCEBF7"},
+        {"primary": "#2779b7", "primary-dark": "#175e94", "primary-light": "#e8eef2"},
+        {"primary": "#2779b7", "primary-dark": "#76b6e7", "primary-light": "#232f38"},
     ),
     ThemeDef(
         "sunset", "Sunset Coral", "common",
-        {"primary": "#E0785A", "primary-dark": "#C25F44", "primary-light": "#FBE6DE"},
+        {"primary": "#ca4a24", "primary-dark": "#a63614", "primary-light": "#f3eae8"},
+        {"primary": "#ca4a24", "primary-dark": "#ed9980", "primary-light": "#392823"},
     ),
     ThemeDef(
         "lavender", "Lavender Dream", "common",
-        {"primary": "#8A63D2", "primary-dark": "#6F4CB0", "primary-light": "#EAE2F9"},
+        {"primary": "#875dd0", "primary-dark": "#682ecc", "primary-light": "#ece9f2"},
+        {"primary": "#875dd0", "primary-dark": "#d0beef", "primary-light": "#2c2537"},
     ),
     ThemeDef(
         "forest", "Deep Forest", "rare",
-        {"primary": "#2F6B45", "primary-dark": "#234F33", "primary-light": "#DCEBE1"},
+        {"primary": "#32834d", "primary-dark": "#1f6336", "primary-light": "#eaf1ec"},
+        {"primary": "#32834d", "primary-dark": "#68cd89", "primary-light": "#27352b"},
     ),
     ThemeDef(
         "rose_gold", "Rose Gold", "rare",
-        {"primary": "#C97B84", "primary-dark": "#A65F68", "primary-light": "#F7E3E5"},
+        {"primary": "#b7575f", "primary-dark": "#a23942", "primary-light": "#f0eaea"},
+        {"primary": "#b7575f", "primary-dark": "#e0aeb2", "primary-light": "#342729"},
     ),
     ThemeDef(
         "midnight", "Midnight", "epic",
-        {"primary": "#4A4A8A", "primary-dark": "#35355E", "primary-light": "#E3E3F4"},
+        {"primary": "#686eb6", "primary-dark": "#434ba8", "primary-light": "#eaebf0"},
+        {"primary": "#686eb6", "primary-dark": "#bbbee2", "primary-light": "#282934"},
         font_display="'Playfair Display', ui-serif, Georgia, serif",
     ),
     ThemeDef(
         "gold_leaf", "Gold Leaf", "legendary",
-        {"primary": "#C6932B", "primary-dark": "#9C7420", "primary-light": "#F7ECD3"},
+        {"primary": "#936f1a", "primary-dark": "#6d500d", "primary-light": "#f3efe8"},
+        {"primary": "#936f1a", "primary-dark": "#e5b648", "primary-light": "#393223"},
         font_display="'Cormorant Garamond', ui-serif, Georgia, serif",
     ),
 ]
@@ -207,6 +224,7 @@ def describe_collection(stats: Stats) -> dict:
                 "name": t.name,
                 "rarity": t.rarity,
                 "colors": t.colors,
+                "colors_dark": t.colors_dark,
                 "font_display": t.font_display,
                 "owned": t.key in stats.owned_themes,
                 "equipped": t.key == stats.equipped_theme,

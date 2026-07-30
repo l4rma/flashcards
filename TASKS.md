@@ -1108,6 +1108,67 @@ profile, and labels" addendum above.
       reset-all-progress coverage of the new fields. 205 backend tests
       passing. `oxlint` clean.
 
+### WCAG AA color/contrast audit (light/dark + Collection themes)
+Requested after a "dark mode colors look pretty bad, especially the
+create-card box" report — out of the numbered phase sequence, same
+pattern as the two addenda above.
+- [x] Full app-wide WCAG AA audit (4.5:1 normal text, checked at each
+      token's actual rendered size/weight) via a small contrast-ratio
+      script, covering every real text/background pairing used in the
+      app for both built-in themes and all seven Collection themes ×
+      light/dark. Found real failures, not just subjective ugliness:
+      `text-white` on `bg-primary`/`bg-wrong` buttons down to 2.55:1 in
+      dark mode, `text-ink-soft/70` captions (used almost everywhere)
+      down to 2.9:1, and Collection themes' `primary-dark` used as text
+      against a dark surface down to 1.33:1 (Midnight) — themes
+      previously applied one shared light-mode-tuned color triple
+      identically in both modes.
+- [x] `index.css`: new base `primary`/`primary-dark`/`wrong`/`wrong-dark`
+      hex values, all passing 4.5:1 everywhere they're actually used.
+      `primary`/`wrong` end up the same hex in light and dark mode (not
+      an oversight — "the color that holds 4.5:1 white button text"
+      lands at nearly the same lightness solved from either end).
+- [x] Structural fix, not just recolor: **the `-dark` variants
+      (`primary-dark`/`wrong-dark`) are now used only as text on a
+      tinted/plain surface, never as a hover-state button background** —
+      a single token can't be simultaneously light enough to read as
+      text on a dark surface and dark enough to hold white button text.
+      Every `hover:bg-primary-dark`/`hover:bg-wrong-dark` (13 buttons
+      across `TrainPage`/`DeckPage`/`PracticeSession`/
+      `ExtraTrainingPicker`/`CollectionPage`/`SettingsPage`/
+      `CelebrationModal`) became `hover:brightness-90` instead.
+- [x] Every `text-ink-soft/70` (23 occurrences — nearly every small
+      caption/label in the app) and the one `text-primary-dark/80` hover
+      lost their opacity modifier (`/70` → none, `/80` → `/90`) — the
+      alpha, not the base color, was what pushed small text below AA;
+      `ink-soft` alone already clears it with margin, so the base
+      palette didn't need to change for this.
+- [x] `backend/app/collection.py`'s `ThemeDef` gained a second color set,
+      `colors_dark` alongside the existing `colors` (light) — all 7
+      Collection themes now have independently-solved light and dark
+      variants (`GET /collection`'s `ThemeOut` gained `colors_dark` to
+      match), plus nudged saturation/hue spread per theme (crisp Ocean
+      blue, muted Forest green, desaturated Rose Gold blush, etc.) for
+      more visual distinction between them, per explicit request.
+- [x] `collectionTheme.js`: `themeColorsForCurrentMode(theme)` picks the
+      right set for the current light/dark toggle; a `MutationObserver`
+      on `<html>`'s `class` re-applies automatically when that toggle
+      changes (previously an equipped theme never reacted to a dark-mode
+      toggle at all — colors could go stale until a full reload).
+      `CollectionPage`'s theme swatches also use this instead of the
+      always-light `.colors.primary`.
+- [x] Verified visually, not just numerically: a throwaway `npm run dev`
+      + Playwright harness (mocked auth token in `sessionStorage`, mocked
+      `/api/*` responses, deleted before finishing — never committed, per
+      `CLAUDE.md`'s established pattern) screenshotted Deck/Train/
+      Profile/Collection in both themes, plus the Deck page with the
+      Midnight Collection theme equipped in dark mode (the worst-case
+      scenario the audit found) to confirm the fix actually renders
+      correctly, not just passes the math.
+- [x] 205 backend tests still passing (schema/data change only, no
+      behavior change — no new tests needed here). `npm run build` +
+      `oxlint` clean.
+
 ## Phase 15 — Sound effects
 Deliberately near the end — decorates interactions introduced by every
 phase above (grade, flip, achievement/quest/level-up celebration,

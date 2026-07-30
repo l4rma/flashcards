@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { buyLootbox, equipCollectible, getCollection, openLootbox } from "../api";
-import { applyCollectionTheme } from "../collectionTheme";
+import { applyCollectionTheme, themeColorsForCurrentMode } from "../collectionTheme";
 import CoinIcon from "../components/CoinIcon";
 
 const RARITY_LABEL = {
@@ -118,7 +118,7 @@ export default function CollectionPage({ onChanged, onAchievementsUnlocked, onLe
                 type="button"
                 disabled={busyTier === box.tier || box.count === 0}
                 onClick={() => handleOpen(box.tier)}
-                className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold px-4 py-2 text-sm disabled:opacity-40"
+                className="rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold px-4 py-2 text-sm disabled:opacity-40"
               >
                 Open
               </button>
@@ -154,7 +154,7 @@ export default function CollectionPage({ onChanged, onAchievementsUnlocked, onLe
               }`}
             >
               <p className="text-sm font-semibold text-ink">{title.name}</p>
-              <p className="text-xs text-ink-soft/70 uppercase tracking-wide">
+              <p className="text-xs text-ink-soft uppercase tracking-wide">
                 {RARITY_LABEL[title.rarity]}
               </p>
             </button>
@@ -181,11 +181,11 @@ export default function CollectionPage({ onChanged, onAchievementsUnlocked, onLe
             >
               <span
                 className="w-5 h-5 rounded-full shrink-0 ring-1 ring-ink/10"
-                style={{ backgroundColor: theme.colors.primary }}
+                style={{ backgroundColor: themeColorsForCurrentMode(theme).primary }}
               />
               <span>
                 <p className="text-sm font-semibold text-ink">{theme.name}</p>
-                <p className="text-xs text-ink-soft/70 uppercase tracking-wide">
+                <p className="text-xs text-ink-soft uppercase tracking-wide">
                   {RARITY_LABEL[theme.rarity]}
                 </p>
               </span>
@@ -209,7 +209,7 @@ export default function CollectionPage({ onChanged, onAchievementsUnlocked, onLe
             <button
               type="button"
               onClick={() => setReveal(null)}
-              className="mt-2 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold px-6 py-2 text-sm"
+              className="mt-2 rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold px-6 py-2 text-sm"
             >
               Nice!
             </button>

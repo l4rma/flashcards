@@ -174,7 +174,7 @@ export default function DeckPage({
           className="w-full bg-primary-light/60 rounded-3xl shadow-md ring-1 ring-primary/10 p-6 flex flex-col gap-4"
         >
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Front</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">Front</span>
             <input
               value={english}
               onChange={(e) => setEnglish(e.target.value)}
@@ -188,7 +188,7 @@ export default function DeckPage({
             )}
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Back</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">Back</span>
             <input
               value={french}
               onChange={(e) => setFrench(e.target.value)}
@@ -202,7 +202,7 @@ export default function DeckPage({
             )}
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">
               Sub-deck (optional)
             </span>
             <input
@@ -215,7 +215,7 @@ export default function DeckPage({
           <button
             type="submit"
             disabled={frontDuplicate || backDuplicate}
-            className="mt-2 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary"
+            className="mt-2 rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold py-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
           >
             Add card
           </button>
@@ -235,7 +235,7 @@ export default function DeckPage({
         <div className="flex items-baseline justify-between mb-4">
           <h1 className="font-display font-semibold text-2xl text-ink">Your deck</h1>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">
               {cards.length} card{cards.length === 1 ? "" : "s"} · {dueCount} due
             </span>
             {cards.length > 0 && (
@@ -280,7 +280,7 @@ export default function DeckPage({
               type="button"
               onClick={bulkDelete}
               disabled={selectedIds.size === 0}
-              className="rounded-full bg-wrong hover:bg-wrong-dark active:scale-95 transition text-white font-bold py-2.5 text-sm disabled:opacity-40"
+              className="rounded-full bg-wrong hover:brightness-90 active:scale-95 transition text-white font-bold py-2.5 text-sm disabled:opacity-40"
             >
               Delete selected
             </button>
@@ -373,10 +373,10 @@ export default function DeckPage({
                         {card.english}
                       </p>
                       <p className="text-sm text-ink-soft">{card.french}</p>
-                      <p className="text-xs text-ink-soft/70 mt-1.5">
+                      <p className="text-xs text-ink-soft mt-1.5">
                         {card.interval_days}d interval · due {card.due_date}
                       </p>
-                      <p className="text-xs text-ink-soft/70">
+                      <p className="text-xs text-ink-soft">
                         ✓ {card.times_correct} · ✗ {card.times_wrong}
                       </p>
                       {card.label && (

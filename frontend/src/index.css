@@ -10,17 +10,17 @@
      the existing brief rather than replacing it. */
   --font-display: "Fraunces", ui-serif, Georgia, serif;
 
-  --color-primary: #4c9a6a;
-  --color-primary-dark: #3e8058;
-  --color-primary-light: #e4f1e9;
+  --color-primary: #388256;
+  --color-primary-dark: #23643d;
+  --color-primary-light: #eaf0ed;
 
   --color-background: #faf7f0;
   --color-surface: #ffffff;
   --color-ink: #2b2b26;
   --color-ink-soft: #6b665c;
 
-  --color-wrong: #e0665a;
-  --color-wrong-dark: #c24f44;
+  --color-wrong: #d63a29;
+  --color-wrong-dark: #b42818;
 
   --color-progress: #8a63d2;
   --color-progress-track: #ece5f9;
@@ -42,26 +42,46 @@
    already flows through these tokens, so every existing bg, text, ring
    and shadow utility adapts automatically with zero component edits.
 
-   Several tokens swap which end of light/dark they sit at, not just get
-   inverted uniformly, because they serve two different roles that pull in
-   opposite directions once the base surface is dark: the "-dark" variants
-   (primary-dark, wrong-dark) are used far more often as text sitting on a
-   tinted surface (needs to get lighter on a dark background to stay
-   legible) than as a button hover-darken (the minority use, and a hover
-   state lightening instead of darkening reads fine too) — so in dark mode
-   they resolve lighter than their base color, not darker. */
+   Every token pair below (and every Collection theme in
+   backend/app/collection.py — see collectionTheme.js) was solved against
+   WCAG AA (4.5:1 for normal text, checked at each token's actual rendered
+   size/weight) — an app-wide audit found the *previous* palette failing
+   this in several real places: `text-white` on `bg-primary`/`bg-wrong`
+   buttons in dark mode as low as 2.55:1, every `text-ink-soft/70` caption
+   around 2.9-4.4:1, and any Collection theme's `primary-dark` used as
+   text once dark mode made the surface behind it dark instead of light
+   (down to 1.33:1 for Midnight). Two structural fixes came out of that,
+   not just new hex values:
+   - The "-dark" variants (primary-dark, wrong-dark) are now used ONLY as
+     text sitting on a tinted/plain surface, never as a solid button
+     background — every `hover:bg-primary-dark`/`hover:bg-wrong-dark`
+     button became `hover:brightness-90` instead (see the .jsx files). A
+     single token can't simultaneously be light enough to read as text on
+     a dark surface *and* dark enough to hold white button text, so
+     splitting that dual role was the only fix that didn't just relocate
+     the failure (dark mode's old hover swap, `primary-dark`, held white
+     text at only 2.00:1).
+   - `text-ink-soft/70` (used for nearly every small caption/label in the
+     app) had its `/70` dropped in favor of solid `text-ink-soft` — the
+     alpha, not the base color, was what pushed 12px captions below
+     4.5:1; `ink-soft` alone already clears it with room to spare.
+   `primary`/`wrong` end up the *same* hex in light and dark mode here —
+   not an oversight: "the color that holds 4.5:1 white text" turns out to
+   land at nearly the same lightness whether solved from the light or the
+   dark end, so one mid-tone value legitimately works as a button
+   background against both a light and a dark page. */
 html.dark {
-  --color-primary: #5eb37f;
-  --color-primary-dark: #8fd9ac;
-  --color-primary-light: #22332a;
+  --color-primary: #388256;
+  --color-primary-dark: #71c994;
+  --color-primary-light: #27342d;
 
   --color-background: #1e1b17;
   --color-surface: #29241e;
   --color-ink: #f2ede3;
   --color-ink-soft: #b6ac9c;
 
-  --color-wrong: #e2776c;
-  --color-wrong-dark: #f3ada5;
+  --color-wrong: #d63a29;
+  --color-wrong-dark: #ee9a91;
 
   --color-progress: #a98ee6;
   --color-progress-track: #2c2438;

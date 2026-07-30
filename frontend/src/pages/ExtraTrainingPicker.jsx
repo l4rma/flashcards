@@ -96,12 +96,12 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
       ) : (
         <>
           <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-5 flex flex-col gap-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">Your deck</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Your deck</p>
             <button
               type="button"
               disabled={cards.length === 0}
               onClick={() => onStart(toQueue(orderCards(cards)), "All my cards", "own_deck")}
-              className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold py-3 disabled:opacity-40"
+              className="rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold py-3 disabled:opacity-40"
             >
               All my cards ({cards.length})
             </button>
@@ -125,7 +125,7 @@ export default function ExtraTrainingPicker({ onStart, onClose }) {
 
           {prebuiltDecks.length > 0 && (
             <div className="w-full max-w-sm flex flex-col gap-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink-soft/70 px-1">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink-soft px-1">
                 Pre-built decks
               </p>
               {prebuiltDecks.map((deck) => (

@@ -30,7 +30,7 @@ function CardFace({ word, hint, variant }) {
         {word}
       </span>
       <span className="w-10 h-px bg-ink/15" />
-      <span className="text-xs font-bold tracking-wide uppercase text-ink-soft/70">{hint}</span>
+      <span className="text-xs font-bold tracking-wide uppercase text-ink-soft">{hint}</span>
     </div>
   );
 }

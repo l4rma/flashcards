@@ -269,6 +269,7 @@ class ThemeOut(BaseModel):
     name: str
     rarity: str
     colors: dict[str, str]
+    colors_dark: dict[str, str]
     font_display: str | None
     owned: bool
     equipped: bool

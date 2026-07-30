@@ -46,7 +46,7 @@ export default function CelebrationModal({ celebration, onDismiss }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="mt-2 rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold px-6 py-2 text-sm"
+          className="mt-2 rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold px-6 py-2 text-sm"
         >
           Nice!
         </button>

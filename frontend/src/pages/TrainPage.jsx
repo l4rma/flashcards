@@ -10,7 +10,7 @@ function ExtraTrainingLink({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="text-sm font-bold text-primary-dark hover:text-primary-dark/80 transition underline-offset-4 hover:underline"
+      className="text-sm font-bold text-primary-dark hover:text-primary-dark/90 transition underline-offset-4 hover:underline"
     >
       🎲 Extra Training
     </button>
@@ -139,11 +139,11 @@ export default function TrainPage({
     <div className="flex-1 flex flex-col items-center justify-center px-4 pt-8 pb-10 gap-7">
       <div className="w-full max-w-sm flex flex-col items-center gap-2">
         <div className="w-full flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">
             {queue.length} left today
           </span>
           {trainQuest && (
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">
               🎯 {trainQuest.progress_current}/{trainQuest.progress_target}
             </span>
           )}
@@ -164,7 +164,7 @@ export default function TrainPage({
             type="button"
             disabled={busy}
             onClick={() => grade("wrong")}
-            className="rounded-full bg-wrong hover:bg-wrong-dark active:scale-95 transition text-white font-bold px-8 py-3 disabled:opacity-50"
+            className="rounded-full bg-wrong hover:brightness-90 active:scale-95 transition text-white font-bold px-8 py-3 disabled:opacity-50"
           >
             Wrong
           </button>
@@ -172,7 +172,7 @@ export default function TrainPage({
             type="button"
             disabled={busy}
             onClick={() => grade("correct")}
-            className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold px-8 py-3 disabled:opacity-50"
+            className="rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold px-8 py-3 disabled:opacity-50"
           >
             Correct
           </button>

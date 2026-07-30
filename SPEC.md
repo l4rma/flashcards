@@ -998,27 +998,38 @@ then a **Titles** grid and a **Card colours** grid, both reusing the
 achievement grid's visual language (owned tiles full color, unowned
 dimmed/grayscale, click to equip — clicking an already-equipped tile
 un-equips it). Each theme tile shows a small color swatch (the theme's
-`primary` value) alongside its name/rarity so you can preview before
+`primary` value, picked for whichever of light/dark mode is currently
+active — see below) alongside its name/rarity so you can preview before
 equipping. Opening a box shows a full-screen reveal (icon by reward kind
 — 🪙 coins, ⚡ xp, 🏷️ title, 🎨 theme — plus the amount or name won); any
 achievement unlock or level-up the reward happened to trigger still queues
 through the normal `App.jsx` celebration queue on top of that reveal.
 
 **Applying an equipped theme**: `frontend/src/collectionTheme.js`'s
-`applyCollectionTheme(theme)` sets the theme's `colors`/`font_display` as
-**inline** CSS custom properties directly on `<html>` (not a class) —
-inline styles win the cascade over both the light default `@theme` values
-*and* the `html.dark {...}` override block (see `DESIGN.md`'s Dark theme
-section), so an equipped theme's accent color reads identically in light
-and dark mode; only the untouched neutral background/surface/ink tokens
-keep responding to the dark toggle. Applied in two places: once by
-`CollectionPage` itself immediately on equip (no round trip needed, the
-theme data is already in hand), and once by `App.jsx` on every app load
-(fetches `GET /collection` alongside `GET /stats` purely to find the
-currently-equipped theme and re-apply it — a brief flash of the default
-green before this resolves is an accepted, subtle cosmetic gap, unlike
-light/dark's own synchronous pre-paint script in `index.html`, which
-exists specifically because *that* flash is much more jarring).
+`applyCollectionTheme(theme)` sets `colors`/`font_display` as **inline**
+CSS custom properties directly on `<html>` (not a class) — inline styles
+win the cascade over both the light default `@theme` values *and* the
+`html.dark {...}` override block (see `DESIGN.md`'s Dark theme section).
+Each `ThemeDef` (`backend/app/collection.py`) ships **two** color sets —
+`colors` (light) and `colors_dark` — not one shared triple applied
+identically in both modes the way this originally worked: a WCAG AA audit
+(see `index.css`'s dark-theme comment for the numbers) found the
+single-triple design failing badly once dark mode put a light-mode-tuned
+`primary-dark` text color against a dark surface instead of a light one
+(as low as 1.33:1 for Midnight — should be ≥4.5:1). `collectionTheme.js`'s
+`themeColorsForCurrentMode(theme)` picks whichever set matches the
+current light/dark toggle, and a `MutationObserver` on `<html>`'s `class`
+attribute re-applies automatically whenever that toggle changes — without
+it, toggling dark mode while a theme was equipped would leave the wrong
+variant's colors applied until the next full page load. Applied in two
+places: once by `CollectionPage` itself immediately on equip (no round
+trip needed, the theme data is already in hand), and once by `App.jsx` on
+every app load (fetches `GET /collection` alongside `GET /stats` purely
+to find the currently-equipped theme and re-apply it — a brief flash of
+the default green before this resolves is an accepted, subtle cosmetic
+gap, unlike light/dark's own synchronous pre-paint script in
+`index.html`, which exists specifically because *that* flash is much
+more jarring).
 
 ### Profile identity (username + avatar)
 

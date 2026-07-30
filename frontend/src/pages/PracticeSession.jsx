@@ -84,7 +84,7 @@ export default function PracticeSession({ queue, title, source, onExit, onAchiev
             <button
               type="button"
               onClick={onExit}
-              className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold px-6 py-3"
+              className="rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold px-6 py-3"
             >
               Done
             </button>
@@ -93,10 +93,10 @@ export default function PracticeSession({ queue, title, source, onExit, onAchiev
       ) : (
         <>
           <div className="w-full max-w-sm flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70 truncate pr-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft truncate pr-2">
               {title}
             </span>
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70 shrink-0">
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-soft shrink-0">
               {index + 1} of {total}
             </span>
           </div>
@@ -113,14 +113,14 @@ export default function PracticeSession({ queue, title, source, onExit, onAchiev
               <button
                 type="button"
                 onClick={() => grade("wrong")}
-                className="rounded-full bg-wrong hover:bg-wrong-dark active:scale-95 transition text-white font-bold px-8 py-3"
+                className="rounded-full bg-wrong hover:brightness-90 active:scale-95 transition text-white font-bold px-8 py-3"
               >
                 Wrong
               </button>
               <button
                 type="button"
                 onClick={() => grade("correct")}
-                className="rounded-full bg-primary hover:bg-primary-dark active:scale-95 transition text-white font-bold px-8 py-3"
+                className="rounded-full bg-primary hover:brightness-90 active:scale-95 transition text-white font-bold px-8 py-3"
               >
                 Correct
               </button>

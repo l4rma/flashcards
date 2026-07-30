@@ -14,7 +14,7 @@ function Stat({ icon, value, label }) {
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-xl leading-none">{icon}</span>
       <span className="font-display font-semibold text-3xl leading-tight text-ink">{value}</span>
-      <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">{label}</span>
+      <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">{label}</span>
     </div>
   );
 }
@@ -101,7 +101,7 @@ export default function ProfilePage() {
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-lg ring-1 ring-ink/10 p-6 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="font-display font-semibold text-lg text-ink">Level {stats.level}</span>
-          <span className="text-xs font-bold text-ink-soft/70">
+          <span className="text-xs font-bold text-ink-soft">
             {stats.xp_into_level}/{stats.xp_for_next_level} XP
           </span>
         </div>
@@ -150,7 +150,7 @@ export default function ProfilePage() {
               <div className="flex-1 min-w-0">
                 <ProgressBar percent={Math.round((q.progress_current / q.progress_target) * 100)} />
               </div>
-              <span className="text-xs font-bold text-ink-soft/70 shrink-0">
+              <span className="text-xs font-bold text-ink-soft shrink-0">
                 {q.progress_current}/{q.progress_target}
               </span>
             </div>
@@ -186,7 +186,7 @@ export default function ProfilePage() {
       <div className="w-full max-w-sm">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="font-display font-semibold text-lg text-ink">Achievements</h2>
-          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft/70">
+          <span className="text-xs font-bold uppercase tracking-wide text-ink-soft">
             {unlockedCount}/{achievements.length}
           </span>
         </div>
@@ -227,7 +227,7 @@ export default function ProfilePage() {
                   percent={Math.round((selected.progress_current / selected.progress_target) * 100)}
                 />
               </div>
-              <span className="text-xs font-bold text-ink-soft/70 shrink-0">
+              <span className="text-xs font-bold text-ink-soft shrink-0">
                 {selected.progress_current}/{selected.progress_target}
               </span>
             </div>

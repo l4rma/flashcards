@@ -59,32 +59,43 @@ Fraunces as the default.
 
 ## Palette
 
-Unchanged from the original brief — the redesign's brief was "same mood,
-executed better," not a palette replacement:
-- Primary green: `#4C9A6A` (hover/darker: `#3E8058`)
+Same hue identity as the original brief (warm green/coral/cream), but the
+exact values were re-solved once a WCAG AA contrast audit (prompted by a
+"dark mode looks bad" report) found the original numbers failing in
+several real places — see Dark theme, below, for the specific failures
+and the two structural fixes that came out of it, not just new hex codes:
+- Primary green: `#388256` (text-role darker: `#23643D`)
 - Background: `#FAF7F0`
 - Surface (card) white: `#FFFFFF`
 - Text: `#2B2B26` / soft: `#6B665C`
-- Wrong/coral: `#E0665A` (darker: `#C24F44`)
+- Wrong/coral: `#D63A29` (text-role darker: `#B42818`)
 - Progress purple (daily quests / achievement progress bars, kept
   deliberately distinct from primary green so "goal progress" reads as its
   own category, not the same thing as "Correct"): `#8A63D2`, track
-  `#ECE5F9`
+  `#ECE5F9` — unaudited (never used as text, only a bar fill/track, so
+  WCAG's text-contrast thresholds don't apply)
 - Coin gold (`components/CoinIcon.jsx`, replacing the 🪙 emoji — see Dark
   theme section for why a custom SVG at all): `#E8B84B`, rim/detail
-  `#C6932B`
+  `#C6932B` — also unaudited, icon fill only
 
 **`--color-primary`/`-dark`/`-light` are overridable at runtime** —
 Collection's card-colour themes (7 as of this writing, e.g. Ocean Blue,
 Sunset Coral, Midnight) let a user re-tint just these three tokens app-
 wide via `collectionTheme.js`, applied as inline styles that win the
 cascade over both this default palette and the dark-theme override block
-below (see Collection page, under Layout). Two of the rarer themes also
-swap `--font-display` away from Fraunces (Midnight → Playfair Display,
-Gold Leaf → Cormorant Garamond) — the only place in the app a non-
-default display font appears, and deliberately gated behind ownership
-rather than freely selectable, so it stays a special, earned moment
-rather than diluting Fraunces' role as this app's everyday voice.
+below (see Collection page, under Layout). Each theme now ships **two**
+color sets, one for light mode and one for dark, re-applied automatically
+when the light/dark toggle changes (see Dark theme, below, for why one
+shared set didn't hold up under the same audit) — and was also nudged
+toward more hue/saturation spread per theme (crisp saturated blue for
+Ocean, muted deep green for Forest, a desaturated blush for Rose Gold,
+etc.) so the seven read as more distinct personalities at a glance, not
+just "same recipe, different hue." Two of the rarer themes also swap
+`--font-display` away from Fraunces (Midnight → Playfair Display, Gold
+Leaf → Cormorant Garamond) — the only place in the app a non-default
+display font appears, and deliberately gated behind ownership rather than
+freely selectable, so it stays a special, earned moment rather than
+diluting Fraunces' role as this app's everyday voice.
 
 ## Dark theme
 
@@ -108,14 +119,45 @@ layered rule in the cascade regardless of selector specificity.
 Chosen as a warm "studying by lamplight" dark (near-black `#1E1B17`
 background, warm dark-taupe `#29241E` surfaces) rather than a cold
 blue-black tech dark mode, to stay consistent with the light theme's warm
-cream identity rather than reading as a generic inverted palette. Several
-tokens deliberately swap which *end* of light/dark they resolve to, not
-just invert uniformly: the `-dark` variants (`primary-dark`, `wrong-dark`)
-are used far more often as text sitting on a tinted surface (Edit/Delete
-pills, ghost buttons, modal captions) than as a button hover-darken, and
-text needs to get *lighter* against a dark surface to stay legible — so in
-dark mode these resolve lighter than their base color, accepting that the
-minority hover-darken usages lighten on hover instead, which reads fine.
+cream identity rather than reading as a generic inverted palette. The
+`-dark` variants (`primary-dark`, `wrong-dark`) deliberately swap which
+*end* of light/dark they resolve to, not just invert uniformly — they're
+used as text sitting on a tinted surface (Edit/Delete pills, ghost
+buttons, modal captions), and text needs to get *lighter* against a dark
+surface to stay legible, so in dark mode these resolve lighter than their
+base color.
+
+**WCAG AA audit (prompted by a "dark mode colors look bad" report) found
+the palette above genuinely failing in several places**, not just looking
+subjectively off — checked against the 4.5:1 normal-text threshold at
+each token's actual rendered size/weight:
+- `text-white` on a `bg-primary`/`bg-wrong` button: as low as 2.55:1 in
+  dark mode (buttons need a darker accent than looked visually "poppy"
+  enough at a glance).
+- `text-ink-soft/70` — used for nearly every small uppercase caption in
+  the app: 2.9-4.4:1 in both modes. The `/70` opacity, not the base
+  `ink-soft` color, was the culprit (`ink-soft` alone already clears
+  4.5:1 with room to spare) — fixed by dropping the opacity modifier
+  everywhere it appeared instead of darkening/lightening the palette.
+- A Collection theme's `primary-dark`, used as text, against a *dark*
+  surface: as low as 1.33:1 (Midnight) — themes previously applied one
+  shared color triple in both light and dark mode; see Palette, above,
+  and Collection page, under Layout, for the two-sets-per-theme fix.
+- The old design's own "hover-darken lightens instead in dark mode, which
+  reads fine" acceptance (previous paragraph here) turned out not to hold
+  once actually measured: `text-white` on the *hover* background
+  (`primary-dark`, now the lighter dark-mode variant) fell to ~2.0:1.
+  Fixed structurally, not just recolored: every solid button's
+  `hover:bg-primary-dark`/`hover:bg-wrong-dark` became `hover:brightness-90`
+  instead, so hover no longer swaps in a second named color at all — the
+  `-dark` tokens are now used *only* for the text-on-tinted-surface role
+  they're already good at, removing the dual role that made a single
+  color unable to satisfy both.
+
+All current values pass 4.5:1 for every actual text/background pairing in
+the app (both built-in themes and all seven Collection themes, light and
+dark) — verified with a small contrast-ratio script during development,
+not just eyeballed.
 
 **Plain `shadow-md`/`shadow-lg` alone stopped being enough for card
 edges once the background went dark** — Tailwind's default shadow color
