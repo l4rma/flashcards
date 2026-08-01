@@ -69,6 +69,21 @@ data "aws_iam_policy_document" "lambda_audio" {
     actions   = ["s3:GetObject", "s3:PutObject"]
     resources = ["${aws_s3_bucket.audio.arn}/*"]
   }
+  statement {
+    # Real, previously-hit bug: without s3:ListBucket on the bucket
+    # itself (a *different* resource ARN from the object-level actions
+    # above — no trailing /*), HeadObject/GetObject on a key that
+    # genuinely doesn't exist yet returns 403 Forbidden instead of 404 —
+    # S3 won't reveal "this key doesn't exist" to a caller it can't
+    # confirm has list access, even though that same caller already has
+    # GetObject on the object path. _exists() only treats 404 as a cache
+    # miss and re-raises anything else, so this bit every very first
+    # pronunciation request (an always-empty bucket, by definition, until
+    # this permission was added).
+    sid       = "AudioBucketList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.audio.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda_audio" {

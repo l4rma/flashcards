@@ -25,7 +25,11 @@ After finishing any change:
 4. If you land on a new convention, constraint, or gotcha while working
    (not just this-one-time decision) — add it to the **Rules and
    conventions** section below so future sessions don't rediscover it the
-   hard way.
+   hard way. If it's specifically a real bug that only surfaced after
+   deploying (passed tests/review, broke against real AWS) — log it in
+   `GOTCHAS.md` too, with the symptom, root cause, and fix, so a similar
+   symptom later can be pattern-matched against a past incident instead
+   of re-diagnosed from scratch.
 
 ## Deployment target: AWS only, no local dev
 

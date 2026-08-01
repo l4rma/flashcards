@@ -284,7 +284,23 @@ as the `back` prop — no new prop, no wiring changes at either call site.
 **Backend**: `GET /pronounce?text=<french text>` (`app/pronunciation.py`)
 synthesizes via **Amazon Polly** (voice **Léa**, `fr-FR`, neural engine)
 and caches the mp3 in a private S3 bucket, returning a permanent
-CloudFront URL. The cache key is `sha256(text.strip().lower()) + ".mp3"`
+CloudFront URL. The Polly client is pinned to **`region_name="eu-west-1"`**
+(a `POLLY_REGION` constant), *not* the Lambda's own region
+(eu-north-1/Stockholm) — confirmed via `aws polly describe-voices` that
+eu-north-1 doesn't support the neural engine for any French voice at all
+(`SynthesizeSpeech` fails there with `ValidationException: The selected
+engine is not supported in this region`); eu-west-1 does. S3/DynamoDB/
+everything else stays in eu-north-1 — only the Polly call itself crosses
+regions, since Polly doesn't care where the resulting audio bytes end up
+stored. The IAM policy for this (`lambda.tf`) needs **three** statements,
+not two: `s3:GetObject`/`PutObject` scoped to the bucket's objects
+(`bucket-arn/*`) *and* `s3:ListBucket` scoped to the bucket itself (a
+different resource ARN, no trailing `/*`) — without the latter, S3
+returns `403 Forbidden` instead of `404 Not Found` for a `HeadObject` on
+a key that genuinely doesn't exist yet (a real, previously-hit bug: an
+empty bucket means *every* cache-miss check hit this, so nothing was
+ever getting as far as calling Polly at all). The cache key is
+`sha256(text.strip().lower()) + ".mp3"`
 — a hash of the **text itself, not the card's id** — deliberately, for
 three reasons: the same French word appears on many different cards
 (yours, other users', pre-built decks), so a text hash means it's

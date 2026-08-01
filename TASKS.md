@@ -1274,6 +1274,37 @@ lootbox open).
         card, playback fires) via the established throwaway
         `npm run dev` + Playwright pattern, mocked `/pronounce` response
         and `HTMLMediaElement.play` — not committed.
+  - [x] **Two real deploy-time bugs**, neither catchable by the moto-based
+        test suite (moto doesn't model IAM authorization or per-region
+        Polly engine availability — both are real-AWS-only failure
+        modes), found via `aws logs tail` on the actual Lambda after the
+        first deploy came back silent:
+        1. `_exists()`'s `head_object` came back `403 Forbidden` instead
+           of `404 Not Found` for every (nonexistent-key) cache-miss
+           check, so every request crashed before ever reaching Polly —
+           explaining "no sound, nothing in the bucket either". Root
+           cause: the IAM policy granted `s3:GetObject`/`PutObject` on
+           `bucket-arn/*` (object-level) but not `s3:ListBucket` on the
+           bucket itself (a *different* resource ARN, no trailing `/*`)
+           — S3's documented behavior is to return 403 rather than 404
+           for a missing key when the caller lacks list access, to avoid
+           confirming/denying what does or doesn't exist in the bucket.
+           Fixed with a third IAM statement in `lambda.tf`.
+        2. Once that was fixed, `SynthesizeSpeech` itself failed:
+           `ValidationException: The selected engine is not supported in
+           this region` — confirmed via `aws polly describe-voices
+           --language-code fr-FR` that eu-north-1 (Stockholm, where this
+           app is deployed) only supports Léa on the **standard** engine,
+           not neural, at all. eu-west-1 (Ireland) does support neural
+           for Léa, so `pronunciation.py`'s Polly client is now pinned to
+           `region_name="eu-west-1"` explicitly (a new `POLLY_REGION`
+           constant) regardless of the Lambda's own region — S3/DynamoDB/
+           everything else stays in eu-north-1 unaffected, since Polly
+           doesn't care where the resulting audio bytes end up stored.
+        Both fixes verified against real AWS directly (`aws iam
+        simulate-principal-policy` for the first, a real
+        `aws polly synthesize-speech` call against eu-west-1 for the
+        second) before redeploying, not just re-tried blind.
 - [ ] AI example sentences: given known deck words + N new candidate words,
       generate example sentences restricted to that vocabulary; UI to
       review and add the new words to the deck

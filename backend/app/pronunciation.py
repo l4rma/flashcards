@@ -16,6 +16,18 @@ LANGUAGE_CODE = "fr-FR"
 ENGINE = "neural"
 MAX_TEXT_LENGTH = 200
 
+# The Lambda itself runs in eu-north-1 (Stockholm) — confirmed via
+# `aws polly describe-voices --language-code fr-FR` against that region
+# that Léa's SupportedEngines there is `["standard"]` only, no "neural"
+# at all (a real, previously-hit deploy bug: every SynthesizeSpeech call
+# failed with "ValidationException: The selected engine is not supported
+# in this region"). eu-west-1 (Ireland) does support the neural engine
+# for Léa, so the Polly client is pinned there explicitly regardless of
+# the Lambda's own region — S3/DynamoDB/everything else stays in
+# eu-north-1 unaffected, since Polly doesn't care where the resulting
+# audio bytes end up being stored.
+POLLY_REGION = "eu-west-1"
+
 
 class AudioStore:
     """Bundles the S3 + Polly clients used by this module — a thin
@@ -28,7 +40,7 @@ class AudioStore:
 
     def __init__(self, s3=None, polly=None):
         self.s3 = s3 or boto3.client("s3")
-        self.polly = polly or boto3.client("polly")
+        self.polly = polly or boto3.client("polly", region_name=POLLY_REGION)
 
 
 def get_audio_store() -> AudioStore:
