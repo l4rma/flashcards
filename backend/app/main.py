@@ -7,10 +7,12 @@ from app import cards as cards_mod
 from app import collection as collection_mod
 from app import leveling as leveling_mod
 from app import prebuilt_decks as prebuilt_decks_mod
+from app import pronunciation as pronunciation_mod
 from app import quests as quests_mod
 from app import stats as stats_mod
 from app.auth import get_current_user_id
 from app.database import Store, get_store
+from app.pronunciation import AudioStore, get_audio_store
 from app.scheduling import apply_grade, reset_card_progress
 from app.schemas import (
     AchievementOut,
@@ -32,6 +34,7 @@ from app.schemas import (
     PrebuiltDeckOut,
     PrebuiltDeckSummary,
     ProfileUpdate,
+    PronounceOut,
     QuestCompletionNotice,
     QuestOut,
     StatsOut,
@@ -430,6 +433,18 @@ def practice_completed(
         newly_unlocked_achievements=_unlock_notices(newly_unlocked),
         newly_leveled_up=newly_leveled_up,
     )
+
+
+@app.get("/pronounce", response_model=PronounceOut)
+def pronounce(text: str, audio_store: AudioStore = Depends(get_audio_store)):
+    """Returns a CloudFront URL for `text` read aloud in French (Amazon
+    Polly, cached in S3 keyed by a hash of the text itself — not the
+    card's id, so the same word is only ever synthesized once no matter
+    how many cards/users reference it, and pre-built/practice cards
+    (which have no real Card id at all) work with zero special-casing —
+    see pronunciation.py). Behind the same JWT authorizer as every other
+    route; no user-specific data involved."""
+    return PronounceOut(url=pronunciation_mod.get_or_create_audio_url(audio_store, text))
 
 
 handler = Mangum(app, api_gateway_base_path="/api")

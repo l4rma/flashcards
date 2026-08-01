@@ -1,3 +1,7 @@
+import { useState } from "react";
+import { getPronunciationUrl } from "../pronunciation";
+import SpeakerIcon from "./SpeakerIcon";
+
 // The stack behind the active card is more than decoration — its depth
 // (0, 1, or 2 receding edges) is a second, glanceable read of how many
 // cards are still queued today, echoing the "N card(s) left" text above it.
@@ -13,6 +17,41 @@ function StackEdges({ depth }) {
   );
 }
 
+// Only rendered on the back (French) face. A plain button layered above
+// the card's own flip-trigger click handler — e.stopPropagation() is
+// required, otherwise tapping it would also flip the card back to front.
+function PronounceButton({ text }) {
+  const [status, setStatus] = useState("idle"); // idle | loading | error
+
+  async function handleClick(e) {
+    e.stopPropagation();
+    if (status === "loading") return;
+    setStatus("loading");
+    try {
+      const url = await getPronunciationUrl(text);
+      await new Audio(url).play();
+      setStatus("idle");
+    } catch (err) {
+      console.error("Pronunciation playback failed:", err);
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 1200);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label="Play pronunciation"
+      className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 ${
+        status === "error" ? "text-wrong" : "text-primary-dark hover:bg-primary/10"
+      } ${status === "loading" ? "animate-pulse" : ""}`}
+    >
+      <SpeakerIcon className="w-4 h-4" />
+    </button>
+  );
+}
+
 function CardFace({ word, hint, variant }) {
   return (
     <div
@@ -22,6 +61,7 @@ function CardFace({ word, hint, variant }) {
     >
       {/* Punch hole — the one recurring "this is an index card" detail. */}
       <span className="absolute top-4 left-4 w-3 h-3 rounded-full bg-background ring-1 ring-ink/10" />
+      {variant === "back" && <PronounceButton text={word} />}
       <span
         className={`font-display font-semibold text-3xl text-center leading-tight ${
           variant === "front" ? "text-ink" : "text-primary-dark"

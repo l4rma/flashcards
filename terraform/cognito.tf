@@ -1,7 +1,7 @@
 resource "aws_cognito_user_pool" "this" {
   name = "${var.project_name}-users"
 
-  username_attributes     = ["email"]
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   password_policy {
@@ -32,7 +32,7 @@ resource "aws_cognito_user_pool_client" "spa" {
 
   generate_secret = false
 
-  allowed_oauth_flows                 = ["code"]
+  allowed_oauth_flows                  = ["code"]
   allowed_oauth_flows_user_pool_client = true
   # aws.cognito.signin.user.admin lets the access token call Cognito's
   # Identity Provider API directly (ChangePassword, UpdateUserAttributes,

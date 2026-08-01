@@ -38,12 +38,21 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
+  # Pronunciation-audio cache (see audio.tf) — a second, separate private
+  # S3 bucket + OAC on this same distribution, same reasoning as sharing
+  # one distribution for /api/* instead of standing up a second one.
+  origin {
+    domain_name              = aws_s3_bucket.audio.bucket_regional_domain_name
+    origin_id                = "s3-audio"
+    origin_access_control_id = aws_cloudfront_origin_access_control.audio.id
+  }
+
   default_cache_behavior {
     target_origin_id       = "s3-frontend"
-    viewer_protocol_policy  = "redirect-to-https"
-    allowed_methods         = ["GET", "HEAD"]
-    cached_methods          = ["GET", "HEAD"]
-    cache_policy_id         = data.aws_cloudfront_cache_policy.caching_optimized.id
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
   }
 
   # The `/api` prefix is NOT stripped here — a CloudFront Function
@@ -59,18 +68,35 @@ resource "aws_cloudfront_distribution" "frontend" {
   # Lambda side instead, via Mangum's `api_gateway_base_path="/api"`
   # (see backend/app/main.py).
   ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    target_origin_id         = "api-gateway"
-    viewer_protocol_policy   = "https-only"
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    path_pattern           = "/api/*"
+    target_origin_id       = "api-gateway"
+    viewer_protocol_policy = "https-only"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods         = ["GET", "HEAD"]
+    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_disabled.id
     # Managed-AllViewer (not used here) forwards the viewer's own Host
     # header verbatim, which API Gateway's execute-api endpoint rejects
     # with a generic 403 Forbidden (Host doesn't match its own domain) —
     # a real, previously-hit bug. This policy forwards everything else but
     # lets CloudFront set Host to the origin's own domain instead.
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+  }
+
+  # Audio object keys are stored in S3 *with* the "audio/" prefix (see
+  # pronunciation.py's _s3_key) specifically so this behavior can forward
+  # requests to S3 completely unrewritten — same lesson as the /api/*
+  # comment above, applied by matching the object's location to the
+  # requested path instead of rewriting the path. caching_optimized (not
+  # caching_disabled like /api/*) since these objects are immutable once
+  # written (content-hash filenames) — this is what actually delivers
+  # edge caching instead of a repeated S3 GetObject per play.
+  ordered_cache_behavior {
+    path_pattern           = "/audio/*"
+    target_origin_id       = "s3-audio"
+    viewer_protocol_policy = "https-only"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
   }
 
   # SPA fallback — this app doesn't use client-side URL routing today (tab

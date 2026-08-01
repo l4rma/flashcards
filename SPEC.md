@@ -272,6 +272,68 @@ all — see Pre-built decks, above), so the picker assigns a synthetic
 `prebuilt-<index>` id when building the local practice queue, only used
 as a React list key.
 
+### Pronunciation audio
+
+A small speaker icon on the back (French) face of every flip card
+(`FlipCard.jsx`'s `CardFace`, `variant === "back"` only) — tap it, hear
+the word/sentence read aloud in French. Shared by both Train and Extra
+Training's Practice Session, since both use the same `FlipCard`
+component and the feature only needs the French text already passed in
+as the `back` prop — no new prop, no wiring changes at either call site.
+
+**Backend**: `GET /pronounce?text=<french text>` (`app/pronunciation.py`)
+synthesizes via **Amazon Polly** (voice **Léa**, `fr-FR`, neural engine)
+and caches the mp3 in a private S3 bucket, returning a permanent
+CloudFront URL. The cache key is `sha256(text.strip().lower()) + ".mp3"`
+— a hash of the **text itself, not the card's id** — deliberately, for
+three reasons: the same French word appears on many different cards
+(yours, other users', pre-built decks), so a text hash means it's
+synthesized once *ever* regardless of how many cards/users reference it;
+pre-built/practice-session cards have no real `Card` id at all
+(`PrebuiltCardOut` carries none — see above) so a card-id key wouldn't
+even work for them; and editing a card's French text (a typo fix)
+naturally invalidates itself — new text, new hash, fresh synthesis, no
+explicit cache-busting logic needed (the old object is simply orphaned,
+which costs nothing worth cleaning up). A request is rejected with 400
+if the text is empty or over 200 characters — the one guardrail against
+a runaway client loop burning Polly cost, not a rate limiter (a manual
+tap-to-play trigger has no automatic/bulk playback path to abuse).
+
+**Storage**: a second private S3 bucket (`audio.tf`), Origin Access
+Control-protected, served through the *same* CloudFront distribution the
+frontend already uses (a new `/audio/*` ordered cache behavior + origin
+in `frontend.tf` — one distribution total, same reasoning as `/api/*`
+already sharing it rather than getting a dedicated one). Object keys are
+stored *with* an `audio/` prefix in S3 specifically so this behavior can
+forward requests to S3 completely unrewritten, matching the exact lesson
+already learned from the `/api/*` prefix-stripping incident (see Rules
+and conventions in `CLAUDE.md`) — don't rewrite the path in CloudFront,
+make the object's location match the requested path instead. Uses
+`caching_optimized` (not `caching_disabled` like `/api/*`), since audio
+objects are immutable once written — this is what actually delivers edge
+caching instead of a repeated S3 `GetObject` per play.
+
+**Frontend**: `frontend/src/pronunciation.js`'s `getPronunciationUrl(text)`
+wraps the API call in a module-level `Map` cache (same "plain
+module-level state" pattern as `theme.js`) keyed the same way as the
+backend's own cache — a word already played once this session never
+hits the network again, and the in-flight Promise itself is cached too,
+so double-tapping before the first request resolves doesn't fire a
+second one. Playback is a plain `new Audio(url).play()` — no persistent
+`<audio>` element, no queueing/debouncing beyond the in-flight-promise
+cache, consistent with this app's generally lightweight approach to
+audio/animation (e.g. `canvas-confetti` used directly). The button calls
+`e.stopPropagation()` first, since `CardFace` sits inside the card's own
+flip-trigger click handler — without it, tapping the speaker would also
+flip the card back to front.
+
+Considered and rejected: browser-side Web Speech API (free, zero
+backend) — already tried once for this exact feature and abandoned (see
+`CLAUDE.md`'s Rules and conventions): Chromium-based browsers expose zero
+voices to it on this dev machine even with `espeak-ng`/`speech-dispatcher`
+installed at the OS level, confirming audio has to be generated
+server-side and served as a normal file.
+
 Nav is a floating icon-only pill bar fixed to the bottom of the viewport
 (no text labels) — see `DESIGN.md`'s Navigation section for the bar
 styling and which emoji maps to which tab.
@@ -1118,15 +1180,15 @@ administers only their own data.
 
 ## Future features (explicitly out of scope for now)
 
-- **Pronunciation audio**: play the French word's pronunciation, likely via
-  an AI TTS API.
 - **AI-generated example sentences**: given the words you already know plus
   X new words you could learn, generate example sentences using only those,
   and let you add the new words to your deck.
 
-These are noted here so the data model/API can be extended later (e.g. an
-`audio_url` field, an "example sentences" sub-resource) without needing a
-redesign, but no work happens on them until the core loop is solid.
+This is noted here so the data model/API can be extended later (e.g. an
+"example sentences" sub-resource) without needing a redesign, but no work
+happens on it until the core loop is solid. Pronunciation audio, the other
+item that used to be listed here, has since shipped — see Pronunciation
+audio, above.
 
 ## Open decisions / assumptions
 

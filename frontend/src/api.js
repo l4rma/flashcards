@@ -123,3 +123,7 @@ export function completePractice(source) {
 export function getPrebuiltDeck(key) {
   return request(`/prebuilt-decks/${key}`);
 }
+
+export function pronounce(text) {
+  return request(`/pronounce?text=${encodeURIComponent(text)}`);
+}

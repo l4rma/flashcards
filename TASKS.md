@@ -1216,14 +1216,64 @@ lootbox open).
       change, not a refactor.
 
 ## Phase 17 — Future AI features (backlog, not started)
-- [ ] Pronunciation audio: research TTS options, add `audio_url` (or
-      generate on demand) and a "play" button on the Train page.
-      Tried browser Web Speech API first (free, zero backend) — reverted:
-      Chromium-based browsers on Linux don't expose any voices to it, even
-      with `espeak-ng`/`speech-dispatcher` installed at the OS level. Next
-      attempt should generate audio server-side (e.g. backend endpoint
-      shelling out to `espeak-ng`, or a real AI TTS API) and have the
-      frontend just play a normal audio file.
+- [x] **Pronunciation audio** — done, ahead of the rest of this backlog
+      phase (planned/approved/implemented as its own pass, out of
+      sequence, same as the addenda elsewhere in this file). A speaker
+      icon on `FlipCard`'s back (French) face, shared by Train and Extra
+      Training's Practice Session. Generated server-side via **Amazon
+      Polly** (Léa, fr-FR, neural) as planned back when this item was
+      first written — the earlier Web Speech API attempt's failure (no
+      voices exposed to Chromium on this dev machine even with
+      `espeak-ng` installed) is exactly what pushed the design toward
+      server-side generation from the start; see SPEC.md's new
+      "Pronunciation audio" section for the full design (content-hash S3
+      cache key rather than card id, private-bucket-behind-CloudFront
+      storage, the `/audio/*` behavior sharing the frontend's existing
+      distribution).
+  - [x] `backend/app/pronunciation.py`: `AudioStore`/`get_audio_store`
+        (mirrors `database.py`'s `Store`/`get_store` DI seam exactly, so
+        it's moto-testable), `get_or_create_audio_url` (hash-based cache
+        key, S3 `head_object` check, Polly `synthesize_speech` on a
+        miss, `put_object`, returns a CloudFront URL). New
+        `GET /pronounce?text=...` route, same JWT gate as everything
+        else.
+  - [x] `terraform/audio.tf` (new file): private S3 bucket + Block Public
+        Access + a second Origin Access Control, mirroring
+        `frontend.tf`'s own bucket exactly. `terraform/frontend.tf`
+        gained a new origin + `/audio/*` ordered_cache_behavior on the
+        *same* distribution (`caching_optimized`, not
+        `caching_disabled` like `/api/*` — audio objects are immutable).
+        `terraform/lambda.tf` gained IAM (`polly:SynthesizeSpeech`,
+        necessarily `Resource = "*"` since Polly has no resource-level
+        ARN for synthesis; `s3:GetObject`/`PutObject` scoped to the new
+        bucket) and two new env vars, `AUDIO_BUCKET`/`AUDIO_CDN_DOMAIN`.
+  - [x] `frontend/src/pronunciation.js`: `getPronunciationUrl(text)`,
+        module-level `Map` cache (mirrors `theme.js`'s module-level state
+        pattern) keyed the same way as the backend's own cache, caching
+        the in-flight Promise too so a double-tap before the first
+        request resolves doesn't fire a second one. New
+        `SpeakerIcon.jsx` (custom SVG, same precedent as
+        `ThemeIcon.jsx`/`CoinIcon.jsx`). `FlipCard.jsx`'s `CardFace`
+        (`variant === "back"` only) gained the button — `e.stopPropagation()`
+        first, since it sits inside the card's own flip-trigger handler.
+  - [x] New `backend/tests/test_pronunciation.py` (8 tests: cache
+        hit/miss via a `_synthesize` call-count spy, case/whitespace
+        normalization, distinct texts get distinct keys, empty/overly-
+        long text both 400, the real `GET /pronounce` route). New
+        `audio_store` pytest fixture (piggybacks on `store`'s already-
+        open `mock_aws()` context — a second independent one would be
+        redundant) works around a genuine moto bug found while writing
+        these: moto's `SynthesizeSpeech` mock validates `VoiceId`
+        against voices' display *Name* ("Léa", accented) instead of the
+        real API *Id* ("Lea" — confirmed against botocore's own
+        `polly/2016-06-10/service-2.json`, which is what real AWS
+        actually accepts), so every accented-name voice would otherwise
+        spuriously fail only in tests. 213 backend tests passing.
+        `oxlint` + `npm run build` clean. Visually verified (icon
+        placement/legibility in light+dark, tapping it doesn't flip the
+        card, playback fires) via the established throwaway
+        `npm run dev` + Playwright pattern, mocked `/pronounce` response
+        and `HTMLMediaElement.play` — not committed.
 - [ ] AI example sentences: given known deck words + N new candidate words,
       generate example sentences restricted to that vocabulary; UI to
       review and add the new words to the deck

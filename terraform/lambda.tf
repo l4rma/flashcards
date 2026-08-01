@@ -50,6 +50,33 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
   policy = data.aws_iam_policy_document.lambda_dynamodb.json
 }
 
+# Pronunciation audio (see backend/app/pronunciation.py, audio.tf).
+# SynthesizeSpeech doesn't support resource-level ARNs (Polly only scopes
+# permissions per-resource for lexicons, not synthesis), so that one
+# statement is necessarily Resource = "*" — the S3 side stays scoped to
+# just the audio bucket's objects, same least-privilege approach as the
+# DynamoDB policy above.
+data "aws_iam_policy_document" "lambda_audio" {
+  statement {
+    sid       = "PollySynthesize"
+    actions   = ["polly:SynthesizeSpeech"]
+    resources = ["*"]
+  }
+  statement {
+    # HeadObject calls are authorized under s3:GetObject too — S3 has no
+    # separate s3:HeadObject IAM action.
+    sid       = "AudioBucketAccess"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${aws_s3_bucket.audio.arn}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_audio" {
+  name   = "${var.project_name}-lambda-audio"
+  role   = aws_iam_role.lambda_exec.id
+  policy = data.aws_iam_policy_document.lambda_audio.json
+}
+
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${var.project_name}-api"
   retention_in_days = 14
@@ -72,9 +99,11 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       CARDS_TABLE             = aws_dynamodb_table.cards.name
-      STATS_TABLE              = aws_dynamodb_table.stats.name
-      ACHIEVEMENTS_TABLE       = aws_dynamodb_table.achievements.name
-      QUEST_COMPLETIONS_TABLE  = aws_dynamodb_table.quest_completions.name
+      STATS_TABLE             = aws_dynamodb_table.stats.name
+      ACHIEVEMENTS_TABLE      = aws_dynamodb_table.achievements.name
+      QUEST_COMPLETIONS_TABLE = aws_dynamodb_table.quest_completions.name
+      AUDIO_BUCKET            = aws_s3_bucket.audio.bucket
+      AUDIO_CDN_DOMAIN        = aws_cloudfront_distribution.frontend.domain_name
     }
   }
 

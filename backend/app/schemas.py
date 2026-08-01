@@ -342,3 +342,7 @@ class PracticeCompletedRequest(BaseModel):
 class PracticeCompletedResult(BaseModel):
     newly_unlocked_achievements: list[AchievementUnlockNotice] = []
     newly_leveled_up: list[LevelUpNotice] = []
+
+
+class PronounceOut(BaseModel):
+    url: str
